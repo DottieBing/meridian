@@ -1,12 +1,17 @@
+import { eq } from 'drizzle-orm'
 import { createDb } from './client'
-import { DEFAULT_WORKSPACE_ID, workspaces } from './schema'
+import { workspaces } from './schema'
 
 const { db, pool } = createDb()
+const name = 'Default'
 
-await db
-  .insert(workspaces)
-  .values({ id: DEFAULT_WORKSPACE_ID, name: 'Zeno Studio' })
-  .onConflictDoNothing()
+const existing = await db.select().from(workspaces).where(eq(workspaces.name, name)).limit(1)
 
-console.log('Seed complete')
+if (existing.length === 0) {
+  const [row] = await db.insert(workspaces).values({ name }).returning()
+  console.log('Created workspace:', row?.id)
+} else {
+  console.log('Workspace already exists:', existing[0]?.id)
+}
+
 await pool.end()
