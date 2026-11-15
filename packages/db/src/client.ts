@@ -1,0 +1,15 @@
+import './env'
+import { drizzle } from 'drizzle-orm/node-postgres'
+import pg from 'pg'
+import * as schema from './schema'
+
+export function createDb(connectionString = process.env.DATABASE_URL) {
+  if (!connectionString) {
+    throw new Error('DATABASE_URL is not set')
+  }
+  const pool = new pg.Pool({ connectionString, max: 10 })
+  const db = drizzle({ client: pool, schema })
+  return { db, pool }
+}
+
+export type Db = ReturnType<typeof createDb>['db']
