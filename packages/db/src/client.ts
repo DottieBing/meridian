@@ -8,4 +8,8 @@ export function createDb(url: string | undefined = process.env.DATABASE_URL) {
   return { db, pool }
 }
 
+export async function pingDb(pool: Pool): Promise<void> {
+  await pool.query('select 1')
+}
+
 export type Db = ReturnType<typeof createDb>['db']
