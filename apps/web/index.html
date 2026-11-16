@@ -5,6 +5,14 @@
     <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>Meridian</title>
+    <script>
+      try {
+        var s = JSON.parse(localStorage.getItem('meridian-theme') || '{}')
+        document.documentElement.dataset.theme = (s.state && s.state.theme) || 'dark'
+      } catch (e) {
+        document.documentElement.dataset.theme = 'dark'
+      }
+    </script>
   </head>
   <body>
     <div id="root"></div>

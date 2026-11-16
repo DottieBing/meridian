@@ -1,11 +1,41 @@
+import { useState } from 'react'
+import { Route, Routes } from 'react-router'
+import { BootScreen } from './components/brand/BootScreen'
+import { AppShell } from './components/layout/AppShell'
+import { PageHeader } from './components/ui/PageHeader'
+import { PLANNED_ITEMS } from './config/nav'
+import { Dashboard } from './pages/Dashboard'
+import { PlannedPage } from './pages/PlannedPage'
+
 export default function App() {
+  const [booted, setBooted] = useState(() => sessionStorage.getItem('meridian-booted') === '1')
+
   return (
-    <main className="flex min-h-screen items-center justify-center bg-bg text-text">
-      <div className="flex items-baseline text-6xl font-medium tracking-tighter">
-        <span>merid</span>
-        <span className="ml-[0.06em] mr-[0.05em] inline-block h-[0.9em] w-[0.085em] rounded-[1px] bg-line" />
-        <span>an</span>
-      </div>
-    </main>
+    <>
+      {!booted && (
+        <BootScreen
+          onFinish={() => {
+            sessionStorage.setItem('meridian-booted', '1')
+            setBooted(true)
+          }}
+        />
+      )}
+      <Routes>
+        <Route element={<AppShell />}>
+          <Route index element={<Dashboard />} />
+          {PLANNED_ITEMS.map((item) => (
+            <Route key={item.path} path={item.path} element={<PlannedPage item={item} />} />
+          ))}
+          <Route
+            path="*"
+            element={
+              <div className="mx-auto max-w-4xl p-6 lg:p-8">
+                <PageHeader title="Page not found" description="That address doesn't exist in Meridian." />
+              </div>
+            }
+          />
+        </Route>
+      </Routes>
+    </>
   )
 }
