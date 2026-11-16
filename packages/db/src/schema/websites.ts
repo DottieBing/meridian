@@ -19,6 +19,7 @@ export const websites = pgTable(
     isPrimary: boolean('is_primary').notNull().default(true),
     status: text('status').$type<WebsiteStatus>().notNull().default('active'),
     lastCheckedAt: timestamp('last_checked_at', { withTimezone: true }),
+    staleAt: timestamp('stale_at', { withTimezone: true }),
     createdAt: createdAt(),
   },
   (t) => [

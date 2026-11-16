@@ -21,6 +21,7 @@ export const businesses = pgTable(
     firstSeenAt: timestamp('first_seen_at', { withTimezone: true }).notNull().defaultNow(),
     lastSeenAt: timestamp('last_seen_at', { withTimezone: true }).notNull().defaultNow(),
     archivedAt: timestamp('archived_at', { withTimezone: true }),
+    staleAt: timestamp('stale_at', { withTimezone: true }),
     createdAt: createdAt(),
     updatedAt: updatedAt(),
   },
@@ -28,6 +29,7 @@ export const businesses = pgTable(
     index('businesses_ws_status_idx').on(t.workspaceId, t.status),
     index('businesses_ws_country_industry_idx').on(t.workspaceId, t.countryCode, t.industry),
     index('businesses_ws_normalized_name_idx').on(t.workspaceId, t.normalizedName),
+    index('businesses_name_trgm_idx').using('gin', t.normalizedName.op('gin_trgm_ops')),
   ],
 )
 

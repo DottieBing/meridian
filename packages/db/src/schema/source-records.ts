@@ -1,6 +1,15 @@
-import { index, jsonb, pgTable, text, timestamp, uniqueIndex, uuid } from 'drizzle-orm/pg-core'
+import {
+  index,
+  jsonb,
+  pgTable,
+  primaryKey,
+  text,
+  timestamp,
+  uniqueIndex,
+  uuid,
+} from 'drizzle-orm/pg-core'
 import { businesses } from './businesses'
-import { pk } from './columns'
+import { createdAt, pk } from './columns'
 import { workspaces } from './workspaces'
 
 export const sourceRecords = pgTable(
@@ -10,7 +19,6 @@ export const sourceRecords = pgTable(
     workspaceId: uuid('workspace_id')
       .notNull()
       .references(() => workspaces.id, { onDelete: 'cascade' }),
-    businessId: uuid('business_id').references(() => businesses.id, { onDelete: 'set null' }),
     provider: text('provider').notNull(),
     externalId: text('external_id').notNull(),
     url: text('url'),
@@ -20,6 +28,20 @@ export const sourceRecords = pgTable(
   },
   (t) => [
     uniqueIndex('source_records_uq').on(t.workspaceId, t.provider, t.externalId, t.contentHash),
-    index('source_records_business_idx').on(t.businessId),
+    index('source_records_provider_idx').on(t.workspaceId, t.provider),
   ],
+)
+
+export const businessSources = pgTable(
+  'business_sources',
+  {
+    businessId: uuid('business_id')
+      .notNull()
+      .references(() => businesses.id, { onDelete: 'cascade' }),
+    sourceRecordId: uuid('source_record_id')
+      .notNull()
+      .references(() => sourceRecords.id, { onDelete: 'cascade' }),
+    createdAt: createdAt(),
+  },
+  (t) => [primaryKey({ columns: [t.businessId, t.sourceRecordId] })],
 )

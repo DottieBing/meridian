@@ -53,3 +53,18 @@ export type SuppressionType = (typeof SUPPRESSION_TYPES)[number]
 
 export const WEBSITE_STATUSES = ['active', 'unreachable', 'dead', 'parked'] as const
 export type WebsiteStatus = (typeof WEBSITE_STATUSES)[number]
+
+export const FINDING_CATEGORIES = [
+  'performance',
+  'seo',
+  'ux',
+  'accessibility',
+  'technical',
+  'security',
+  'ecommerce',
+  'content',
+] as const
+export type FindingCategory = (typeof FINDING_CATEGORIES)[number]
+
+export const SEVERITIES = ['info', 'low', 'medium', 'high', 'critical'] as const
+export type Severity = (typeof SEVERITIES)[number]
