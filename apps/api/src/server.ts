@@ -1,4 +1,5 @@
 import { createDb, pingDb } from '@meridian/db'
+import { createBoss, ensureQueues } from '@meridian/queue'
 import { loadConfig } from '@meridian/shared'
 import { buildApp } from './app'
 
@@ -11,9 +12,16 @@ try {
 }
 
 const { db, pool } = createDb(config.DATABASE_URL)
-const app = await buildApp({ config, db, checkDb: () => pingDb(pool) })
+
+const boss = createBoss(config.DATABASE_URL, 'client')
+boss.on('error', (err) => console.error('[queue]', err))
+await boss.start()
+await ensureQueues(boss)
+
+const app = await buildApp({ config, db, boss, checkDb: () => pingDb(pool) })
 
 app.addHook('onClose', async () => {
+  await boss.stop({ graceful: false })
   await pool.end()
 })
 

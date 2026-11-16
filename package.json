@@ -9,6 +9,7 @@
   "scripts": {
     "dev": "pnpm -r --parallel --if-present dev",
     "dev:api": "pnpm --filter @meridian/api dev",
+    "dev:worker": "pnpm --filter @meridian/worker dev",
     "dev:web": "pnpm --filter web dev",
     "typecheck": "pnpm -r --if-present typecheck",
     "lint": "pnpm -r --if-present lint",
