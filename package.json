@@ -10,9 +10,9 @@
     "typecheck": "pnpm -r --if-present typecheck",
     "lint": "pnpm -r --if-present lint",
     "test": "pnpm -r --if-present test",
-    "db:generate": "pnpm --filter db generate",
-    "db:migrate": "pnpm --filter db migrate",
-    "db:seed": "pnpm --filter db seed",
-    "db:studio": "pnpm --filter db studio"
+    "db:generate": "pnpm --filter @meridian/db db:generate",
+    "db:migrate": "pnpm --filter @meridian/db db:migrate",
+    "db:seed": "pnpm --filter @meridian/db db:seed",
+    "db:studio": "pnpm --filter @meridian/db db:studio"
   }
 }
