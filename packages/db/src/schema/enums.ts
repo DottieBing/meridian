@@ -68,3 +68,6 @@ export type FindingCategory = (typeof FINDING_CATEGORIES)[number]
 
 export const SEVERITIES = ['info', 'low', 'medium', 'high', 'critical'] as const
 export type Severity = (typeof SEVERITIES)[number]
+
+export const DISCOVERY_RUN_STATUSES = ['queued', 'running', 'completed', 'failed'] as const
+export type DiscoveryRunStatus = (typeof DISCOVERY_RUN_STATUSES)[number]

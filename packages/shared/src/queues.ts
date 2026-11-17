@@ -30,7 +30,7 @@ export const discoverySearchRequest = discoverySearchBase
 
 /** What goes on the queue. The workspace is always resolved. */
 export const discoverySearchPayload = discoverySearchBase
-  .extend({ workspaceId: z.string().uuid() })
+  .extend({ workspaceId: z.string().uuid(), runId: z.string().uuid() })
   .refine(needsArea, areaMessage)
 
 export type DiscoverySearchPayload = z.infer<typeof discoverySearchPayload>

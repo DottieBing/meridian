@@ -1,5 +1,7 @@
 import type { Db } from '@meridian/db'
-import { DiscoveryError, isPresetId, runDiscoverySearch } from '@meridian/discovery'
+import {
+  DiscoveryError, isPresetId, markCompleted, markFailed, markRunning, runDiscoverySearch,
+} from '@meridian/discovery'
 import type { Boss } from '@meridian/queue'
 import { QUEUES, discoverySearchPayload } from '@meridian/shared'
 import type { Logger } from '../logger'
@@ -12,11 +14,17 @@ export async function registerDiscovery(boss: Boss, db: Db, log: Logger): Promis
     const results: unknown[] = []
     for (const job of jobs) {
       const payload = discoverySearchPayload.parse(job.data)
+      const { runId } = payload
+      await markRunning(db, runId, job.id)
+
       if (!isPresetId(payload.preset)) {
-        log.error(`discovery ${job.id}: unknown preset "${payload.preset}"`)
-        results.push({ ok: false, error: `Unknown preset "${payload.preset}"` })
+        const error = `Unknown preset "${payload.preset}"`
+        log.error(`discovery ${job.id}: ${error}`)
+        await markFailed(db, runId, error)
+        results.push({ ok: false, error })
         continue
       }
+
       log.info(`discovery ${job.id} started: ${payload.preset} in ${payload.city ?? payload.countryCode}`)
       try {
         const summary = await runDiscoverySearch(
@@ -30,12 +38,16 @@ export async function registerDiscovery(boss: Boss, db: Db, log: Logger): Promis
           },
           (m) => log.info(m),
         )
+        await markCompleted(db, runId, summary)
         log.info(
           `discovery ${job.id} finished: ${summary.created} created, ${summary.merged} merged, ` +
             `${summary.unchanged} unchanged, ${summary.errors} errors`,
         )
         results.push({ ok: true, ...summary })
       } catch (err) {
+        const kind = err instanceof DiscoveryError ? err.kind : 'unexpected'
+        const message = err instanceof Error ? err.message : String(err)
+        await markFailed(db, runId, `[${kind}] ${message}`)
         if (err instanceof DiscoveryError && PERMANENT.has(err.kind)) {
           log.error(`discovery ${job.id} failed permanently [${err.kind}]: ${err.message}`)
           results.push({ ok: false, kind: err.kind, error: err.message })
