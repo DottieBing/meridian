@@ -48,7 +48,7 @@ export type DiscoveredBusiness = {
   externalId: string
   sourceUrl: string
   name: string
-  website?: { url: string; domain: string; isSocial: boolean }
+  website?: { url: string; domain: string; isSocial: boolean; isAggregator: boolean }
   emails: string[]
   phones: string[]
   address: { street?: string; city?: string; postcode?: string; country?: string }

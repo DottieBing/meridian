@@ -9,6 +9,8 @@
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
+    "@meridian/db": "workspace:*",
+    "@meridian/discovery": "workspace:*",
     "@meridian/queue": "workspace:*",
     "@meridian/shared": "workspace:*"
   },

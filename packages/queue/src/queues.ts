@@ -7,4 +7,9 @@ export async function ensureQueues(boss: Boss): Promise<void> {
     retryDelay: 5,
     expireInSeconds: 60,
   })
+  await boss.createQueue(QUEUES.discoverySearch, {
+    retryLimit: 1,
+    retryDelay: 60,
+    expireInSeconds: 900,
+  })
 }

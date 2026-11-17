@@ -2,14 +2,25 @@ import { createHash } from 'node:crypto'
 import { mkdir, readFile, stat, writeFile } from 'node:fs/promises'
 import path from 'node:path'
 import { DiscoveryError, type Log } from './types'
+import { existsSync } from 'node:fs'
 
 export const sleep = (ms: number) => new Promise<void>((resolve) => setTimeout(resolve, ms))
 
 export const userAgent = () => process.env.CRAWLER_USER_AGENT ?? 'MeridianBot/0.1'
 
-/** Runtime data lives in <repo>/data (gitignored). Scripts run from packages/engines/discovery. */
+function findRepoRoot(start: string): string {
+  let dir = start
+  for (;;) {
+    if (existsSync(path.join(dir, 'pnpm-workspace.yaml'))) return dir
+    const parent = path.dirname(dir)
+    if (parent === dir) return start
+    dir = parent
+  }
+}
+
+/** Runtime data lives in <repo>/data (gitignored), whatever directory the process starts in. */
 export const dataDir = () =>
-  path.resolve(process.env.MERIDIAN_DATA_DIR ?? path.join(process.cwd(), '../../../data'))
+  path.resolve(process.env.MERIDIAN_DATA_DIR ?? path.join(findRepoRoot(process.cwd()), 'data'))
 
 /** Guarantees a minimum gap between calls, even when callers overlap. */
 export class MinGap {

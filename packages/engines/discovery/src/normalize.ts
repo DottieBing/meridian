@@ -5,6 +5,16 @@ const SOCIAL = [
   'tiktok.com', 'youtube.com', 'linktr.ee', 'wa.me',
 ]
 
+const AGGREGATORS = [
+  'booking.com', 'airbnb.com', 'abnb.me', 'tripadvisor.com', 'expedia.com', 'agoda.com',
+  'hotels.com', 'trivago.com', 'vrbo.com', 'google.com', 'goo.gl', 'g.page', 'share.google',
+  'yelp.com', 'doctoralia.com', 'bit.ly', 'tinyurl.com', 't.co',
+]
+const matches = (domain: string, list: string[]) =>
+  list.some((s) => domain === s || domain.endsWith(`.${s}`))
+const looksLikeAggregator = (domain: string) =>
+  matches(domain, AGGREGATORS) || /^airbnb\./.test(domain) // airbnb.com.cy, airbnb.co.uk, ...
+
 function parseWebsite(raw: string | undefined): DiscoveredBusiness['website'] {
   const first = raw?.split(';')[0]?.trim()
   if (!first) return undefined
@@ -12,8 +22,12 @@ function parseWebsite(raw: string | undefined): DiscoveredBusiness['website'] {
     const u = new URL(/^https?:\/\//i.test(first) ? first : `https://${first}`)
     if (!u.hostname.includes('.')) return undefined
     const domain = u.hostname.toLowerCase().replace(/^www\./, '')
-    const isSocial = SOCIAL.some((s) => domain === s || domain.endsWith(`.${s}`))
-    return { url: u.toString(), domain, isSocial }
+    return {
+      url: u.toString(),
+      domain,
+      isSocial: matches(domain, SOCIAL),
+      isAggregator: looksLikeAggregator(domain),
+    }
   } catch {
     return undefined
   }

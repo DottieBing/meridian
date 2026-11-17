@@ -6,6 +6,7 @@ import Fastify from 'fastify'
 import { healthRoutes } from './routes/health'
 import { jobRoutes } from './routes/jobs'
 import { workspaceRoutes } from './routes/workspaces'
+import { discoveryRoutes } from './routes/discovery'
 
 export type AppDeps = {
   config: Config
@@ -35,6 +36,7 @@ export async function buildApp({ config, db, boss, checkDb }: AppDeps) {
   await app.register(healthRoutes(checkDb))
   await app.register(workspaceRoutes(db))
   await app.register(jobRoutes(boss))
+  await app.register(discoveryRoutes(db, boss))
 
   return app
 }

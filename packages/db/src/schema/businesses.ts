@@ -41,6 +41,7 @@ export const businessLocations = pgTable(
       .notNull()
       .references(() => businesses.id, { onDelete: 'cascade' }),
     addressLine: text('address_line'),
+    label: text('label'),
     city: text('city'),
     region: text('region'),
     postalCode: text('postal_code'),

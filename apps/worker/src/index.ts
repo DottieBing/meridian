@@ -1,3 +1,4 @@
+import { createDb } from '@meridian/db'
 import { createBoss, ensureQueues } from '@meridian/queue'
 import { loadConfig } from '@meridian/shared'
 import { registerHandlers } from './handlers'
@@ -13,12 +14,13 @@ try {
   process.exit(1)
 }
 
+const { db, pool } = createDb(config.DATABASE_URL)
 const boss = createBoss(config.DATABASE_URL, 'worker')
 boss.on('error', (err) => log.error('queue error', err))
 
 await boss.start()
 await ensureQueues(boss)
-await registerHandlers(boss, log)
+await registerHandlers(boss, log, db)
 log.info('worker ready, waiting for jobs')
 
 let stopping = false
@@ -27,6 +29,7 @@ async function shutdown(signal: string) {
   stopping = true
   log.info(`${signal} received, finishing active jobs`)
   await boss.stop({ graceful: true, timeout: 30_000 })
+  await pool.end()
   log.info('worker stopped')
   process.exit(0)
 }

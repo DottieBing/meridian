@@ -11,6 +11,7 @@
   "dependencies": {
     "@fastify/cors": "^11.4.3",
     "@meridian/db": "workspace:*",
+    "@meridian/discovery": "workspace:*",
     "@meridian/queue": "workspace:*",
     "@meridian/shared": "workspace:*",
     "fastify": "^5.12.8"
