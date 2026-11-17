@@ -9,6 +9,7 @@
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
+    "@meridian/contacts": "workspace:*",
     "@meridian/db": "workspace:*",
     "@meridian/discovery": "workspace:*",
     "@meridian/queue": "workspace:*",

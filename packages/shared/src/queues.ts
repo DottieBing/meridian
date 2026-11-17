@@ -3,6 +3,7 @@ import { z } from 'zod'
 export const QUEUES = {
   systemPing: 'system-ping',
   discoverySearch: 'discovery-search',
+  contactScan: 'contact-scan',
 } as const
 
 export type QueueName = (typeof QUEUES)[keyof typeof QUEUES]
@@ -34,3 +35,6 @@ export const discoverySearchPayload = discoverySearchBase
   .refine(needsArea, areaMessage)
 
 export type DiscoverySearchPayload = z.infer<typeof discoverySearchPayload>
+
+export const contactScanPayload = z.object({ investigationId: z.string().uuid() })
+export type ContactScanPayload = z.infer<typeof contactScanPayload>

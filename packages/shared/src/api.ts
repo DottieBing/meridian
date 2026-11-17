@@ -22,3 +22,17 @@ export const businessListQuery = z.object({
   hasPhone: flag.optional(),
   ...paging,
 })
+
+export const investigationListQuery = z.object({
+  kind: z.enum(['contact_scan', 'website_audit', 'tech_detection', 'competitor_scan']).optional(),
+  status: z.enum(['queued', 'running', 'completed', 'failed', 'cancelled']).optional(),
+  businessId: z.string().uuid().optional(),
+  ...paging,
+})
+
+export const bulkContactScanRequest = z.object({
+  limit: z.number().int().min(1).max(500).default(25),
+  industry: z.string().max(60).optional(),
+  city: z.string().max(100).optional(),
+  rescanAfterDays: z.number().int().min(1).max(365).default(30),
+})

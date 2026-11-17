@@ -12,4 +12,9 @@ export async function ensureQueues(boss: Boss): Promise<void> {
     retryDelay: 60,
     expireInSeconds: 900,
   })
+    await boss.createQueue(QUEUES.contactScan, {
+    retryLimit: 1,
+    retryDelay: 120,
+    expireInSeconds: 600,
+  })
 }

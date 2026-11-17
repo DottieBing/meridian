@@ -10,6 +10,7 @@
   },
   "dependencies": {
     "@fastify/cors": "^11.4.3",
+    "@meridian/contacts": "workspace:*",
     "@meridian/db": "workspace:*",
     "@meridian/discovery": "workspace:*",
     "@meridian/queue": "workspace:*",
