@@ -157,6 +157,7 @@ async function addLocation(
   }
   await tx.insert(businessLocations).values({
     businessId,
+    label: b.name,
     addressLine: b.address.street ?? null,
     city: b.address.city ?? ctx.city,
     postalCode: b.address.postcode ?? null,
@@ -171,6 +172,44 @@ const EXCERPT_KEYS = [
   'name', 'website', 'contact:website', 'url', 'email', 'contact:email',
   'phone', 'contact:phone', 'mobile', 'contact:mobile',
 ]
+
+const words = (s: string) => s.trim().split(/\s+/)
+
+/** A name for a group of properties: shared leading words, else shared trailing words, else the domain. */
+function brandName(names: string[], domain: string): string {
+  const w = names.map(words)
+  const first = w[0] ?? []
+  let p = 0
+  while (p < first.length && w.every((x) => x[p]?.toLowerCase() === first[p]?.toLowerCase())) p++
+  if (p >= 1 && first.slice(0, p).join('').length >= 4) return first.slice(0, p).join(' ')
+  let s = 0
+  while (
+    s < first.length &&
+    w.every((x) => x[x.length - 1 - s]?.toLowerCase() === first[first.length - 1 - s]?.toLowerCase())
+  ) {
+    s++
+  }
+  if (s >= 2) return first.slice(first.length - s).join(' ')
+  const label = domain.split('.')[0] ?? domain
+  return label.charAt(0).toUpperCase() + label.slice(1)
+}
+
+/** When one domain covers several differently-named properties, name the business after the group. */
+async function maybeRebrand(tx: Tx, businessId: string, domain: string): Promise<void> {
+  const rows = await tx
+    .select({ name: sql<string | null>`${sourceRecords.payload}->'tags'->>'name'` })
+    .from(sourceRecords)
+    .innerJoin(businessSources, eq(businessSources.sourceRecordId, sourceRecords.id))
+    .where(eq(businessSources.businessId, businessId))
+  const byNormalized = new Map<string, string>()
+  for (const r of rows) if (r.name) byNormalized.set(normalizeName(r.name), r.name)
+  if (byNormalized.size < 2) return // same property seen twice (node + way): keep its own name
+  const brand = brandName([...byNormalized.values()], domain)
+  await tx
+    .update(businesses)
+    .set({ name: brand, normalizedName: normalizeName(brand) })
+    .where(eq(businesses.id, businessId))
+}
 
 export async function persistBusiness(
   db: Db, ctx: PersistContext, b: DiscoveredBusiness, searchPreset: string,
@@ -263,6 +302,7 @@ export async function persistBusiness(
     }
 
     await tx.insert(businessSources).values({ businessId, sourceRecordId: rec.id }).onConflictDoNothing()
+        if (rule === 'domain' && b.website) await maybeRebrand(tx, businessId, b.website.domain)
 
     const [ev] = await tx
       .insert(evidence)
