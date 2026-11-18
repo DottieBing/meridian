@@ -84,3 +84,10 @@ export const CONTACT_ROLES = [
   'unknown',
 ] as const
 export type ContactRole = (typeof CONTACT_ROLES)[number]
+
+export const TECH_CATEGORIES = [
+  'cms', 'website_builder', 'ecommerce', 'page_builder', 'plugin', 'framework', 'js_library',
+  'analytics', 'tag_manager', 'advertising', 'marketing', 'chat', 'booking', 'payment',
+  'consent', 'hosting', 'server', 'language', 'legacy',
+] as const
+export type TechCategory = (typeof TECH_CATEGORIES)[number]

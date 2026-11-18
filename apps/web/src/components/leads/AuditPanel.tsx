@@ -1,4 +1,4 @@
-import type { FindingDto } from '@meridian/shared/api-types'
+import type { FindingDto, TechnologyDto } from '@meridian/shared/api-types'
 import { useQueryClient } from '@tanstack/react-query'
 import { Radar } from 'lucide-react'
 import { useEffect, useRef } from 'react'
@@ -85,6 +85,50 @@ function FindingRow({ f }: { f: FindingDto }) {
         )}
       </div>
     </div>
+  )
+}
+
+const TECH_GROUPS: [string, string][] = [
+  ['website_builder', 'Website builder'], ['cms', 'CMS'], ['ecommerce', 'E-commerce'],
+  ['page_builder', 'Page builders'], ['plugin', 'Plugins'], ['framework', 'Frameworks'],
+  ['js_library', 'Libraries'], ['booking', 'Booking and scheduling'], ['payment', 'Payments'],
+  ['analytics', 'Analytics'], ['tag_manager', 'Tag managers'], ['advertising', 'Advertising'],
+  ['marketing', 'Marketing'], ['chat', 'Chat'], ['consent', 'Cookie consent'],
+  ['hosting', 'Hosting and CDN'], ['server', 'Server'], ['language', 'Language'], ['legacy', 'Legacy'],
+]
+
+function TechnologiesPanel({ techs }: { techs: TechnologyDto[] }) {
+  return (
+    <section className="rounded-xl border border-border bg-surface">
+      <div className="border-b border-border px-4 py-2.5 font-mono text-[11px] tracking-wider text-muted">
+        TECHNOLOGIES DETECTED · {techs.length}
+      </div>
+      <div className="space-y-3 px-4 py-3">
+        {TECH_GROUPS.map(([cat, label]) => {
+          const rows = techs.filter((t) => t.category === cat)
+          if (rows.length === 0) return null
+          return (
+            <div key={cat} className="flex flex-wrap items-center gap-2">
+              <span className="w-36 shrink-0 text-xs text-muted">{label}</span>
+              {rows.map((t) => (
+                <Badge
+                  key={t.id}
+                  tone={t.confidence >= 70 ? 'neutral' : 'warn'}
+                  title={`Seen via ${t.via}${t.excerpt ? `: ${t.excerpt}` : ''} (confidence ${t.confidence})${t.detail ? ` · ${t.detail}` : ''}`}
+                >
+                  {t.name}
+                  {t.version ? ` ${t.version}` : ''}
+                </Badge>
+              ))}
+            </div>
+          )
+        })}
+        <p className="text-xs text-muted">
+          Detected from page code and response headers. A technology we do not know, or one hidden behind a CDN, will
+          not appear, so absence is not proof it is not used. Versions are what the site reports.
+        </p>
+      </div>
+    </section>
   )
 }
 
@@ -204,6 +248,7 @@ export function AuditPanel({
               ))}
             </div>
           )}
+          {(data.technologies ?? []).length > 0 && <TechnologiesPanel techs={data.technologies} />}
         </>
       )}
     </div>

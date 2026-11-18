@@ -4,6 +4,7 @@ import { load } from 'cheerio'
 import { runRules } from './audit'
 import { RULES } from './rules'
 import type { AuditContext, AuditFiles, AuditPage } from './types'
+import { detectTechnologies } from './tech/detect'
 
 const GOOD_HEADERS = {
   'strict-transport-security': 'max-age=31536000',
@@ -39,7 +40,8 @@ function page(html: string, o: Partial<AuditPage> = {}): AuditPage {
 }
 
 function ctx(home: AuditPage, files: AuditFiles = FILES_OK, others: AuditPage[] = []): AuditContext {
-  return { siteUrl: home.requestedUrl, home, pages: [home, ...others], files }
+  const pages = [home, ...others]
+  return { siteUrl: home.requestedUrl, home, pages, files, tech: detectTechnologies(pages) }
 }
 
 const fired = new Set<string>()
@@ -133,6 +135,34 @@ test('a missing sitemap is flagged, but not when the check was inconclusive', ()
   expectFires(ctx(page(CLEAN), missing), ['seo.sitemap.missing'])
   const unsure: AuditFiles = { ...missing, sitemap: { ...missing.sitemap, inconclusive: true } }
   assert.ok(!codesOf(ctx(page(CLEAN), unsure)).has('seo.sitemap.missing'))
+})
+
+test('technology rules fire on legacy technology', () => {
+  const html = `<html lang="en"><head><title>T</title>
+<script src="/js/jquery-1.12.4.min.js"></script>
+<link rel="stylesheet" href="/css/bootstrap-3.3.7.min.css">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/angular.js/1.8.2/angular.min.js"></script>
+<script>ga('create','UA-1234567-1','auto')</script></head>
+<body><object data="intro.swf"></object><script src="https://connect.facebook.net/en_US/fbevents.js"></script></body></html>`
+  expectFires(ctx(page(html, { headers: { ...GOOD_HEADERS, 'x-powered-by': 'PHP/7.4.33' } })), [
+    'tech.php.end_of_life',
+    'tech.jquery.old_version',
+    'tech.bootstrap.unmaintained',
+    'tech.angularjs.unmaintained',
+    'tech.flash.content',
+    'tech.analytics.universal_only',
+    'tech.consent.not_detected',
+  ])
+})
+
+test('current libraries with a consent tool trigger no technology findings', () => {
+  const html = `<html lang="en"><head><title>T</title>
+<script src="/js/jquery-3.7.1.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
+<script src="https://consent.cookiebot.com/uc.js"></script>
+<script async src="https://www.googletagmanager.com/gtag/js?id=G-ABC1234567"></script></head><body></body></html>`
+  const codes = codesOf(ctx(page(html, { headers: { ...GOOD_HEADERS, 'x-powered-by': 'PHP/8.3.1' } })))
+  assert.deepEqual([...codes].filter((c) => c.startsWith('tech.')), [])
 })
 
 test('every rule in the engine was exercised by a fixture', () => {

@@ -8,10 +8,12 @@ import {
   suppressions,
   websites,
   type Db,
+  websiteTechnologies,
 } from '@meridian/db'
 import { AUDIT_METHOD_VERSION, runRules } from './audit'
 import { buildContext, loadPages, pickHome } from './context'
-import type { AuditFiles, AuditPage, FindingDraft, Log } from './types'
+import type { AuditFiles, AuditPage, FindingDraft, Log, DetectedTech } from './types'
+import { TECH_METHOD_VERSION } from './tech/detect'
 
 const FRESH_MS = 7 * 24 * 3600 * 1000
 
@@ -118,16 +120,40 @@ async function saveFindings(
   })
 }
 
-async function checkFiles(client: PoliteClient, origin: string, log: Log): Promise<AuditFiles> {
+function originVariants(...urls: string[]): string[] {
+  const primary = [...new Set(urls.map((u) => new URL(u).origin))]
+  const flipped = primary.map((o) => {
+    const u = new URL(o)
+    u.hostname = u.hostname.startsWith('www.') ? u.hostname.slice(4) : `www.${u.hostname}`
+    return u.origin
+  })
+  return [...new Set([...primary, ...flipped])]
+}
+
+async function checkFiles(
+  client: PoliteClient,
+  origins: string[],
+  log: Log,
+  state: { dnsDead: boolean },
+): Promise<AuditFiles> {
   let robots: AuditFiles['robots'] = null
+  let origin = origins[0] ?? ''
   let inconclusive = false
-  try {
-    const r = await client.fetchResource(`${origin}/robots.txt`)
-    robots = { status: r.status, body: r.status === 200 ? r.body : '', url: r.finalUrl }
-  } catch (e) {
-    log(`robots.txt check failed for ${origin}: ${e instanceof Error ? e.message : String(e)}`)
-    inconclusive = true
+  let dnsFailures = 0
+  for (const o of origins) {
+    try {
+      const r = await client.fetchResource(`${o}/robots.txt`)
+      robots = { status: r.status, body: r.status === 200 ? r.body : '', url: r.finalUrl }
+      origin = o
+      inconclusive = false
+      break
+    } catch (e) {
+      if (e instanceof FetchError && e.kind === 'dns') dnsFailures++
+      log(`robots.txt check failed for ${o}: ${e instanceof Error ? e.message : String(e)}`)
+      inconclusive = true
+    }
   }
+  state.dnsDead = !robots && dnsFailures === origins.length
 
   const declared = robots
     ? [...robots.body.matchAll(/^\s*sitemap:\s*(\S+)/gim)].flatMap((m) => (m[1] ? [m[1]] : []))
@@ -150,6 +176,50 @@ async function checkFiles(client: PoliteClient, origin: string, log: Log): Promi
     }
   }
   return { robots, sitemap: { found: false, url: null, checked, inconclusive } }
+}
+
+async function saveTechnologies(
+  db: Db,
+  inv: { id: string; workspaceId: string },
+  websiteId: string,
+  techs: DetectedTech[],
+  byId: Map<string, AuditPage>,
+): Promise<void> {
+  if (techs.length === 0) return
+  await db.transaction(async (tx) => {
+    for (const t of techs) {
+      const page = byId.get(t.snapshotId)
+      const [ev] = await tx
+        .insert(evidence)
+        .values({
+          workspaceId: inv.workspaceId,
+          kind: t.via === 'header' ? 'http_response' : 'page_snapshot',
+          sourceUrl: t.pageUrl,
+          method: `tech-detect:${t.via}`,
+          excerpt: t.excerpt,
+          contentHash: page?.contentHash ?? null,
+          storagePath: page?.storagePath ?? null,
+          capturedAt: page?.capturedAt ?? new Date(),
+          metadata: { investigationId: inv.id, snapshotId: t.snapshotId, detector: TECH_METHOD_VERSION },
+        })
+        .returning({ id: evidence.id })
+      if (!ev) throw new Error('evidence insert returned no row')
+      await tx.insert(websiteTechnologies).values({
+        workspaceId: inv.workspaceId,
+        websiteId,
+        investigationId: inv.id,
+        slug: t.slug,
+        name: t.name,
+        category: t.category,
+        version: t.version,
+        versions: t.versions,
+        detail: t.detail,
+        confidence: t.confidence,
+        via: t.via,
+        evidenceId: ev.id,
+      })
+    }
+  })
 }
 
 export async function runWebsiteAudit(db: Db, id: string, log: Log): Promise<Record<string, unknown>> {
@@ -236,13 +306,17 @@ export async function runWebsiteAudit(db: Db, id: string, log: Log): Promise<Rec
   const home = pickHome(pages, site.url)
   if (!home) return fail('no_snapshot', 'No readable page snapshot was available')
 
-  const files = await checkFiles(client, new URL(home.url).origin, log)
+  const dnsState = { dnsDead: false }
+  const files = await checkFiles(client, originVariants(home.url, site.url), log, dnsState)
+  if (dnsState.dnsDead) {
+    return fail('dead', 'The domain no longer resolves, so the stored pages are out of date and no audit was run.')
+  }
   const context = buildContext(site.url, pages, files)
   if (!context) return fail('no_snapshot', 'No readable page snapshot was available')
 
   const { findings, errors } = runRules(context)
   const byId = new Map(context.pages.map((p) => [p.snapshotId, p]))
-  await saveFindings(db, inv, findings, byId)
+  await saveTechnologies(db, inv, site.id, context.tech, byId)
 
   const bySeverity: Record<string, number> = {}
   const byCategory: Record<string, number> = {}
@@ -258,6 +332,7 @@ export async function runWebsiteAudit(db: Db, id: string, log: Log): Promise<Rec
     pagesAudited: context.pages.length,
     fetchedFresh,
     findings: findings.length,
+    technologies: context.tech.length,
     bySeverity,
     byCategory,
     ruleErrors: errors,

@@ -33,6 +33,13 @@ try {
           title: clip(f.title, 70),
         })),
       )
+      console.log('\nTechnologies detected:')
+      console.table(
+        ctx.tech.map((t) => ({
+          category: t.category, name: t.name, version: t.version ?? '', detail: t.detail ?? '',
+          conf: t.confidence, via: t.via, seen: clip(t.excerpt, 60),
+        })),
+      )
       if (errors.length > 0) console.log('Rule errors:', errors)
     }
   }

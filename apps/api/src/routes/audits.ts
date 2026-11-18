@@ -11,6 +11,7 @@ import {
   sql,
   websites,
   type Db,
+  websiteTechnologies
 } from '@meridian/db'
 import type { Boss } from '@meridian/queue'
 import { QUEUES, bulkWebsiteAuditRequest, uuidParam } from '@meridian/shared'
@@ -20,8 +21,11 @@ import type { FastifyPluginAsync } from 'fastify'
 const RANK: Record<string, number> = { critical: 5, high: 4, medium: 3, low: 2, info: 1 }
 
 export const auditRoutes =
+
   (db: Db, boss: Boss): FastifyPluginAsync =>
+
   async (app) => {
+    
     app.post('/api/v1/businesses/:id/website-audit', async (req, reply) => {
       const p = uuidParam.safeParse(req.params)
       if (!p.success) return reply.code(400).send({ error: 'Invalid id' })
@@ -160,6 +164,24 @@ export const auditRoutes =
         }))
         .sort((a, b) => (RANK[b.severity] ?? 0) - (RANK[a.severity] ?? 0) || a.code.localeCompare(b.code))
 
+      const technologies = await db
+        .select({
+          id: websiteTechnologies.id,
+          slug: websiteTechnologies.slug,
+          name: websiteTechnologies.name,
+          category: websiteTechnologies.category,
+          version: websiteTechnologies.version,
+          versions: websiteTechnologies.versions,
+          detail: websiteTechnologies.detail,
+          confidence: websiteTechnologies.confidence,
+          via: websiteTechnologies.via,
+          excerpt: evidence.excerpt,
+          sourceUrl: evidence.sourceUrl,
+        })
+        .from(websiteTechnologies)
+        .innerJoin(evidence, eq(evidence.id, websiteTechnologies.evidenceId))
+        .where(eq(websiteTechnologies.investigationId, inv.id))
+
       return {
         data: {
           investigation: {
@@ -170,7 +192,21 @@ export const auditRoutes =
             summary: inv.summary,
           },
           findings: shaped,
+          technologies,
         },
       }
+    })
+
+    app.get('/api/v1/technologies', async () => {
+      const res = await db.execute(sql`
+        select t.slug, t.name, t.category, count(distinct t.website_id)::int as sites
+        from website_technologies t
+        where t.investigation_id in (
+          select distinct on (website_id) id from investigations
+          where kind = 'website_audit' and status = 'completed'
+          order by website_id, created_at desc)
+        group by 1, 2, 3
+        order by sites desc, t.name`)
+      return { data: res.rows }
     })
   }

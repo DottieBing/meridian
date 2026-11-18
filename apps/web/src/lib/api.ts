@@ -8,6 +8,7 @@ import type {
   Paged,
   PresetDto,
   WorkspaceDto,
+  TechOptionDto,
 } from '@meridian/shared/api-types'
 
 async function getJson<T>(url: string, init?: RequestInit): Promise<T> {
@@ -39,6 +40,7 @@ function businessQuery(f: BusinessFilters, paging: boolean): URLSearchParams {
   if (f.audited !== undefined) p.set('audited', String(f.audited))
   if (f.minSeverity) p.set('minSeverity', f.minSeverity)
   if (f.sort) p.set('sort', f.sort)
+  if (f.tech) p.set('tech', f.tech)
   if (paging) {
     p.set('limit', String(f.limit))
     p.set('offset', String(f.offset))
@@ -96,4 +98,8 @@ export async function startWebsiteAudit(businessId: string): Promise<{ investiga
 
 export async function fetchAudit(businessId: string): Promise<AuditDto | null> {
   return (await getJson<{ data: AuditDto | null }>(`/api/v1/businesses/${businessId}/audit`)).data
+}
+
+export async function fetchTechOptions(): Promise<TechOptionDto[]> {
+  return (await getJson<{ data: TechOptionDto[] }>('/api/v1/technologies')).data
 }

@@ -27,6 +27,8 @@ const LATEST_AUDIT = sql`(select i.id from investigations i where i.business_id 
 // A sorting aid: critical 8, high 5, medium 3, low 1, info 0. It is not a quality score.
 const ISSUE_WEIGHT = sql`(select coalesce(sum(case f.severity when 'critical' then 8 when 'high' then 5 when 'medium' then 3 when 'low' then 1 else 0 end), 0)::int from findings f where f.investigation_id = ${LATEST_AUDIT})`
 
+const PLATFORM = sql`(select t.name || coalesce(' ' || t.version, '') from website_technologies t where t.investigation_id = ${LATEST_AUDIT} and t.category in ('website_builder','cms','ecommerce','framework') order by case t.category when 'website_builder' then 1 when 'cms' then 2 when 'ecommerce' then 3 else 4 end, t.confidence desc limit 1)`
+
 const CONTACTABLE = `exists (select 1 from contact_points c where c.business_id = "businesses"."id" and c.type = 'email' and c.stale_at is null and coalesce(c.role, 'unknown') not in ('privacy_legal', 'no_reply', 'technical'))`
 
 function buildWhere(f: Filters) {
@@ -43,6 +45,9 @@ function buildWhere(f: Filters) {
     f.audited === undefined ? undefined : f.audited ? sql`${LATEST_AUDIT} is not null` : sql`${LATEST_AUDIT} is null`,
     f.minSeverity
       ? sql`exists (select 1 from findings f where f.investigation_id = ${LATEST_AUDIT} and f.severity in (${sql.raw(SEVERITY_SETS[f.minSeverity])}))`
+      : undefined,
+    f.tech
+      ? sql`exists (select 1 from website_technologies t where t.investigation_id = ${LATEST_AUDIT} and t.slug = ${f.tech})`
       : undefined,
   )
 }
@@ -84,6 +89,7 @@ export const businessRoutes =
           phoneCount: sql<number>`(select count(*)::int from contact_points c where c.business_id = "businesses"."id" and c.type = 'phone' and c.stale_at is null)`,
           locationCount: sql<number>`(select count(*)::int from business_locations l where l.business_id = "businesses"."id")`,
           contactable: sql<boolean>`${sql.raw(CONTACTABLE)}`,
+          platform: sql<string | null>`${PLATFORM}`,
           auditId: sql<string | null>`${LATEST_AUDIT}`,
           auditOutcome: sql<string | null>`(select i.summary->>'outcome' from investigations i where i.id = ${LATEST_AUDIT})`,
           issueWeight: sql<number>`${ISSUE_WEIGHT}`,
@@ -128,16 +134,17 @@ export const businessRoutes =
           auditOutcome: sql<string | null>`(select i.summary->>'outcome' from investigations i where i.id = ${LATEST_AUDIT})`,
           issueWeight: sql<number>`${ISSUE_WEIGHT}`,
           issues: sql<string[]>`array(select f.title from findings f where f.investigation_id = ${LATEST_AUDIT} and f.severity in ('medium','high','critical') order by case f.severity when 'critical' then 3 when 'high' then 2 else 1 end desc, f.code limit 3)`,
+          platform: sql<string | null>`${PLATFORM}`,
         })
         .from(businesses)
         .where(buildWhere(f))
         .orderBy(...orderFor(f.sort))
         .limit(5000)
 
-      const header = ['lead_id', 'name', 'industry', 'niche', 'city', 'website', 'email', 'email_type', 'phone', 'audit_status', 'issue_weight', 'top_issues']
+      const header = ['lead_id', 'name', 'industry', 'niche', 'city', 'website', 'platform', 'email', 'email_type', 'phone', 'audit_status', 'issue_weight', 'top_issues']
       const lines = rows.map((r) =>
         [
-          cell(r.id), cell(r.name), cell(r.industry), cell(r.niche), cell(r.city), cell(r.website),
+          cell(r.id), cell(r.name), cell(r.industry), cell(r.niche), cell(r.city), cell(r.website), cell(r.platform),
           cell(r.email), cell(r.emailRole), cell(r.phone, true), cell(r.auditOutcome), cell(r.auditOutcome ? r.issueWeight : ''),
           cell(r.issues.join(' | ')),
         ].join(','),

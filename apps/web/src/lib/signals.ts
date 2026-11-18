@@ -17,6 +17,13 @@ const LABELS: Record<string, string> = {
   'performance.html.large': 'Very large page',
   'performance.ttfb.slow': 'Slow server',
   'performance.redirect_chain': 'Redirect chain',
+  'tech.php.end_of_life': 'End-of-life PHP',
+  'tech.jquery.old_version': 'Old jQuery',
+  'tech.bootstrap.unmaintained': 'Dated Bootstrap',
+  'tech.angularjs.unmaintained': 'AngularJS',
+  'tech.flash.content': 'Flash content',
+  'tech.analytics.universal_only': 'Dead Google Analytics',
+  'tech.consent.not_detected': 'No cookie consent seen',
 }
 
 export const signalLabel = (code: string): string =>

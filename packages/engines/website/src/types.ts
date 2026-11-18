@@ -1,4 +1,4 @@
-import type { EvidenceKind, FindingCategory, Severity } from '@meridian/db'
+import type { EvidenceKind, FindingCategory, Severity, TechCategory } from '@meridian/db'
 import type { CheerioAPI } from 'cheerio'
 
 export type Log = (message: string) => void
@@ -35,6 +35,7 @@ export type AuditContext = {
   home: AuditPage
   pages: AuditPage[]
   files: AuditFiles
+  tech: DetectedTech[]
 }
 
 export type FindingEvidence = {
@@ -56,6 +57,20 @@ export type FindingDraft = {
   affectedUrl: string | null
   confidence: number
   evidence: FindingEvidence
+}
+
+export type DetectedTech = {
+  slug: string
+  name: string
+  category: TechCategory
+  version: string | null
+  versions: string[]
+  detail: string | null
+  confidence: number
+  via: string
+  excerpt: string
+  snapshotId: string
+  pageUrl: string
 }
 
 export type Rule = { id: string; run: (ctx: AuditContext) => FindingDraft[] }

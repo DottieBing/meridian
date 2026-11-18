@@ -2,6 +2,7 @@ import { readSnapshot } from '@meridian/crawl'
 import { desc, eq, pageSnapshots, type Db } from '@meridian/db'
 import { load } from 'cheerio'
 import type { AuditContext, AuditFiles, AuditPage } from './types'
+import { detectTechnologies } from './tech/detect'
 
 export async function loadPages(db: Db, websiteId: string, maxPages = 8): Promise<AuditPage[]> {
   const rows = await db
@@ -60,5 +61,6 @@ export function pickHome(pages: AuditPage[], siteUrl: string): AuditPage | undef
 export function buildContext(siteUrl: string, pages: AuditPage[], files: AuditFiles): AuditContext | undefined {
   const home = pickHome(pages, siteUrl)
   if (!home) return undefined
-  return { siteUrl, home, pages: [home, ...pages.filter((p) => p !== home)], files }
+  const ordered = [home, ...pages.filter((p) => p !== home)]
+  return { siteUrl, home, pages: ordered, files, tech: detectTechnologies(ordered) }
 }

@@ -11,6 +11,7 @@ import {
   fetchWorkspaces,
   startContactScan,
   startWebsiteAudit,
+  fetchTechOptions,
 } from './api'
 
 export const isActiveScan = (s: InvestigationDto) => s.status === 'queued' || s.status === 'running'
@@ -91,4 +92,8 @@ export function useStartAudit(businessId: string) {
     mutationFn: () => startWebsiteAudit(businessId),
     onSuccess: () => qc.invalidateQueries({ queryKey: ['audit-runs', businessId] }),
   })
+}
+
+export function useTechOptions() {
+  return useQuery({ queryKey: ['tech-options'], queryFn: fetchTechOptions, staleTime: 60_000, retry: false })
 }

@@ -8,7 +8,7 @@ const SOCIAL = [
 const AGGREGATORS = [
   'booking.com', 'airbnb.com', 'abnb.me', 'tripadvisor.com', 'expedia.com', 'agoda.com',
   'hotels.com', 'trivago.com', 'vrbo.com', 'google.com', 'goo.gl', 'g.page', 'share.google',
-  'yelp.com', 'doctoralia.com', 'bit.ly', 'tinyurl.com', 't.co',
+  'yelp.com', 'doctoralia.com', 'bit.ly', 'tinyurl.com', 't.co', 'cyprus.com',
 ]
 const matches = (domain: string, list: string[]) =>
   list.some((s) => domain === s || domain.endsWith(`.${s}`))
@@ -22,11 +22,12 @@ function parseWebsite(raw: string | undefined): DiscoveredBusiness['website'] {
     const u = new URL(/^https?:\/\//i.test(first) ? first : `https://${first}`)
     if (!u.hostname.includes('.')) return undefined
     const domain = u.hostname.toLowerCase().replace(/^www\./, '')
+    const listingPage = /^\/listings?\/[^/]+/i.test(u.pathname) // a directory's page for the business, not its own site
     return {
       url: u.toString(),
       domain,
       isSocial: matches(domain, SOCIAL),
-      isAggregator: looksLikeAggregator(domain),
+      isAggregator: looksLikeAggregator(domain) || listingPage,
     }
   } catch {
     return undefined

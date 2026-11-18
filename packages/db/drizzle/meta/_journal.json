@@ -43,6 +43,13 @@
       "when": 1794997274516,
       "tag": "0005_free_lyja",
       "breakpoints": true
+    },
+    {
+      "idx": 6,
+      "version": "7",
+      "when": 1795033107480,
+      "tag": "0006_spotty_nighthawk",
+      "breakpoints": true
     }
   ]
 }

@@ -34,6 +34,7 @@ export type BusinessFilters = {
   sort?: 'recent' | 'issues'
   limit: number
   offset: number
+  tech?: string
 }
 
 export type BusinessAuditSummary = {
@@ -59,6 +60,7 @@ export type BusinessListItem = {
   locationCount: number
   contactable: boolean
   audit: BusinessAuditSummary | null
+  platform: string | null
 }
 
 export type ContactType = 'email' | 'phone' | 'social' | 'contact_form' | 'address'
@@ -199,4 +201,21 @@ export type AuditDto = {
     summary: AuditSummary | null
   }
   findings: FindingDto[]
+  technologies: TechnologyDto[]
 }
+
+export type TechnologyDto = {
+  id: string
+  slug: string
+  name: string
+  category: string
+  version: string | null
+  versions: string[]
+  detail: string | null
+  confidence: number
+  via: string
+  excerpt: string | null
+  sourceUrl: string | null
+}
+
+export type TechOptionDto = { slug: string; name: string; category: string; sites: number }

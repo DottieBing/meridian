@@ -7,8 +7,8 @@ import { Badge } from '../components/ui/Badge'
 import { PageHeader } from '../components/ui/PageHeader'
 import { businessExportUrl, startBulkAnalyse } from '../lib/api'
 import { fmtAgo } from '../lib/format'
-import { useBusinesses, usePresets } from '../lib/queries'
 import { SEVERE_SIGNALS, signalLabel } from '../lib/signals'
+import { useBusinesses, usePresets, useTechOptions } from '../lib/queries'
 
 const PAGE_SIZE = 25
 const SEVERITIES = ['low', 'medium', 'high', 'critical'] as const
@@ -62,6 +62,7 @@ export function Leads() {
   const navigate = useNavigate()
   const qc = useQueryClient()
   const presets = usePresets()
+  const techOptions = useTechOptions();
 
   const q = params.get('q') ?? ''
   const industry = params.get('industry') ?? ''
@@ -72,6 +73,7 @@ export function Leads() {
   const audited = params.get('audited') === '1'
   const minSeverity = SEVERITIES.find((s) => s === params.get('sev'))
   const sort = params.get('sort') === 'issues' ? 'issues' : 'recent'
+  const tech = params.get('tech') ?? ''
   const page = Math.max(0, Number(params.get('page') ?? '0') || 0)
 
   const [search, setSearch] = useState(q)
@@ -111,6 +113,7 @@ export function Leads() {
     ...(contactable ? { contactable: true } : {}),
     ...(audited ? { audited: true } : {}),
     ...(minSeverity ? { minSeverity } : {}),
+    ...(tech ? { tech } : {}),
     sort,
     limit: PAGE_SIZE,
     offset: page * PAGE_SIZE,
@@ -124,7 +127,7 @@ export function Leads() {
   )
   const from = total === 0 ? 0 : page * PAGE_SIZE + 1
   const to = Math.min(total, (page + 1) * PAGE_SIZE)
-  const anyFilter = Boolean(q || industry || hasWebsite || hasEmail || hasPhone || contactable || audited || minSeverity)
+  const anyFilter = Boolean(q || industry || hasWebsite || hasEmail || hasPhone || contactable || audited || minSeverity || tech)
 
   const analyse = useMutation({
     mutationFn: () => startBulkAnalyse(industry || undefined),
@@ -208,6 +211,21 @@ export function Leads() {
           <option value="recent">Recently seen</option>
           <option value="issues">Most issues first</option>
         </select>
+        <select
+          value={tech}
+          onChange={(e) => setParam('tech', e.target.value || null)}
+          aria-label="Technology"
+          className="rounded-md border border-border bg-surface px-2.5 py-1.5 text-sm outline-none focus:border-line/60"
+        >
+          <option value="">Any technology</option>
+          {(techOptions.data ?? [])
+            .filter((o) => o.sites >= 2)
+            .map((o) => (
+              <option key={o.slug} value={o.slug}>
+                {o.name} ({o.sites})
+              </option>
+            ))}
+        </select>
       </div>
 
       <div className="mt-2 flex flex-wrap items-center gap-2">
@@ -286,7 +304,10 @@ export function Leads() {
                   </Link>
                   <div className="text-xs text-muted">{[b.niche ?? b.industry, b.city].filter(Boolean).join(' · ')}</div>
                 </td>
-                <td className="max-w-48 truncate px-4 py-2.5">{b.website ?? dash}</td>
+                <td className="max-w-48 px-4 py-2.5">
+                  <div className="truncate">{b.website ?? dash}</div>
+                  {b.platform && <div className="mt-0.5 truncate text-xs text-muted">{b.platform}</div>}
+                </td>
                 <td className="px-4 py-2.5">
                   <Issues a={b.audit} />
                 </td>
