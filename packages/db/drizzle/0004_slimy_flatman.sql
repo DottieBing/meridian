@@ -1,0 +1,1 @@
+ALTER TABLE "contact_points" ADD COLUMN "role" text;

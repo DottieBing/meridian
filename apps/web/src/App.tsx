@@ -4,7 +4,9 @@ import { BootScreen } from './components/brand/BootScreen'
 import { AppShell } from './components/layout/AppShell'
 import { PageHeader } from './components/ui/PageHeader'
 import { PLANNED_ITEMS } from './config/nav'
+import { BusinessDetailPage } from './pages/BusinessDetailPage'
 import { Dashboard } from './pages/Dashboard'
+import { Leads } from './pages/Leads'
 import { PlannedPage } from './pages/PlannedPage'
 
 export default function App() {
@@ -23,6 +25,8 @@ export default function App() {
       <Routes>
         <Route element={<AppShell />}>
           <Route index element={<Dashboard />} />
+          <Route path="leads" element={<Leads />} />
+          <Route path="leads/:id" element={<BusinessDetailPage />} />
           {PLANNED_ITEMS.map((item) => (
             <Route key={item.path} path={item.path} element={<PlannedPage item={item} />} />
           ))}

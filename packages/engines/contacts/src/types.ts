@@ -1,3 +1,5 @@
+import type { ContactRole } from '@meridian/db'
+
 export type Log = (message: string) => void
 
 export type ExtractSource =
@@ -12,8 +14,9 @@ export type FoundContact = {
   context: string
   confidence: number
   classification: 'business' | 'personal' | 'unknown'
+  role?: ContactRole
   offDomain?: boolean
-  validation?: { syntaxValid: boolean; domainResolves: boolean; hasMx: boolean; checkedAt: string }
+  validation?: { syntaxValid: boolean; domainResolves: boolean; hasMx: boolean | null; checkedAt: string }
 }
 
 export type PageResult = { url: string; status: number; bytes: number; contentHash: string }

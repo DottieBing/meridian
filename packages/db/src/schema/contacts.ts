@@ -10,7 +10,7 @@ import {
 } from 'drizzle-orm/pg-core'
 import { businesses } from './businesses'
 import { createdAt, pk } from './columns'
-import type { ContactClass, ContactType } from './enums'
+import type { ContactClass, ContactRole, ContactType } from './enums'
 import { evidence } from './evidence'
 import { websites } from './websites'
 import { workspaces } from './workspaces'
@@ -18,7 +18,7 @@ import { workspaces } from './workspaces'
 export type ContactValidation = {
   syntaxValid?: boolean
   domainResolves?: boolean
-  hasMx?: boolean
+  hasMx?: boolean | null
   checkedAt?: string
 }
 
@@ -37,6 +37,7 @@ export const contactPoints = pgTable(
     value: text('value').notNull(),
     normalizedValue: text('normalized_value').notNull(),
     classification: text('classification').$type<ContactClass>().notNull().default('unknown'),
+    role: text('role').$type<ContactRole>(),
     validation: jsonb('validation').$type<ContactValidation>(),
     confidence: integer('confidence').notNull().default(0),
     evidenceId: uuid('evidence_id')

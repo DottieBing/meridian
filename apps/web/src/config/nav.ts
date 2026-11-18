@@ -77,7 +77,7 @@ export const NAV: NavSection[] = [
   {
     label: 'MANAGEMENT',
     items: [
-      { label: 'Lead Database', path: '/leads', icon: Database, phase: 8, summary: 'Every business with advanced filters and statuses.' },
+      { label: 'Lead Database', path: '/leads', icon: Database },
       { label: 'Custom Lists', path: '/lists', icon: ListChecks, phase: 8, summary: 'Hand-built and saved lead lists.' },
       { label: 'Tags', path: '/tags', icon: Tag, phase: 8, summary: 'Tag and organise leads your way.' },
       { label: 'Activity History', path: '/activity', icon: Activity, phase: 8, summary: 'A timeline of everything that happened to a lead.' },
@@ -113,5 +113,8 @@ export const ALL_ITEMS: NavItem[] = NAV.flatMap((s) => s.items)
 export const PLANNED_ITEMS: NavItem[] = ALL_ITEMS.filter((i) => i.phase !== undefined)
 
 export function findNavItem(pathname: string): NavItem | undefined {
-  return ALL_ITEMS.find((i) => i.path === pathname)
+  return (
+    ALL_ITEMS.find((i) => i.path === pathname) ??
+    ALL_ITEMS.find((i) => i.path !== '/' && pathname.startsWith(`${i.path}/`))
+  )
 }

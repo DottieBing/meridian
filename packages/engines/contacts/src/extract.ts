@@ -38,10 +38,10 @@ function decodeCfEmail(hex: string): string | undefined {
   return out
 }
 
-function toE164(raw: string, region: string | null): string | undefined {
+function toPhone(raw: string, region: string | null): { e164: string; pretty: string } | undefined {
   const cleaned = raw.trim().replace(/^00/, '+')
   const p = parsePhoneNumberFromString(cleaned, (region ?? undefined) as CountryCode | undefined)
-  return p?.isValid() ? p.number : undefined
+  return p?.isValid() ? { e164: p.number, pretty: p.formatInternational() } : undefined
 }
 
 const SOCIAL_HOSTS: Record<string, string> = {
@@ -77,7 +77,7 @@ export function canonicalSocial(raw: string, base?: string): { url: string; plat
   }
   const keep =
     platform === 'linkedin' ? 2 : platform === 'youtube' ? (first.startsWith('@') ? 1 : 2) : first === 'pages' ? 3 : 1
-  return { url: `https://${host}/${segs.slice(0, keep).join('/')}`.toLowerCase(), platform }
+  return { url: `https://${host}/${segs.slice(0, keep).join('/')}`, platform }
 }
 
 type LdFound = { emails: string[]; phones: string[]; sameAs: string[] }
@@ -113,9 +113,9 @@ export function extractFromHtml(html: string, pageUrl: string, region: string | 
   const socials: RawSocial[] = []
   const links: Extracted['links'] = []
 
-  const addPhone = (raw: string, source: ExtractSource, context: string) => {
-    const e164 = toE164(raw, region)
-    if (e164) phones.push({ value: raw.trim(), e164, source, context })
+    const addPhone = (raw: string, source: ExtractSource, context: string) => {
+    const p = toPhone(raw, region)
+    if (p) phones.push({ value: p.pretty, e164: p.e164, source, context })
   }
   const addSocial = (raw: string, source: ExtractSource, context: string) => {
     const s = canonicalSocial(raw, pageUrl)

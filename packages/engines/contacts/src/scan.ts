@@ -1,7 +1,8 @@
-import { resolve4, resolve6, resolveMx } from 'node:dns/promises'
+import { Resolver, lookup } from 'node:dns/promises'
 import { cleanEmail, extractFromHtml } from './extract'
 import { FetchError, PoliteClient, type Page } from './net'
 import type { FoundContact, Log, ScanOutcome, ScanResult } from './types'
+import type { ContactRole } from '@meridian/db'
 
 export type ScanOptions = {
   userAgent: string
@@ -53,11 +54,26 @@ function normalizeUrl(u: string): string {
   }
 }
 
-function classifyEmail(email: string): FoundContact['classification'] {
+const ROLE_RULES: [ContactRole, RegExp][] = [
+  ['privacy_legal', /^(dpo|dpd|privacy|gdpr|dataprotection|data-protection|data\.protection|legal|compliance|dsar|abuse)$/],
+  ['no_reply', /^(no[-_.]?reply|do[-_.]?not[-_.]?reply|mailer-daemon|postmaster|bounces?)$/],
+  ['technical', /^(webmaster|hostmaster|it|tech|technical|web|website|security)$/],
+  ['booking', /^(reservations?|booking|bookings|book|rooms|stay|appointments?|front-?desk|reception)$/],
+  ['sales', /^(sales|marketing)$/],
+  ['support', /^(support|help|service|customer-?service|care|feedback|guest-?relations|concierge|complaints?)$/],
+  ['general', /^(info|contact|hello|hi|office|admin|mail|enquiries|enquiry|welcome|hotel|clinic|team)$/],
+]
+
+function emailRole(email: string): ContactRole {
   const local = email.split('@')[0] ?? ''
-  if (GENERIC_LOCALS.has(local)) return 'business'
-  if (/^[a-z]{2,}[._-][a-z]{2,}$/.test(local)) return 'personal'
-  return 'unknown'
+  for (const [role, re] of ROLE_RULES) if (re.test(local)) return role
+  return /^[a-z]{2,}[._-][a-z]{2,}$/.test(local) ? 'named_person' : 'unknown'
+}
+
+function classifyEmail(email: string): FoundContact['classification'] {
+  const role = emailRole(email)
+  if (role === 'named_person') return 'personal'
+  return role === 'unknown' ? 'unknown' : 'business'
 }
 
 function emailConfidence(source: string, contactPage: boolean, onDomain: boolean, free: boolean): number {
@@ -79,23 +95,29 @@ const withTimeout = <T>(p: Promise<T>, ms = 5000): Promise<T> =>
     }),
   ])
 
-async function checkDomain(domain: string): Promise<{ domainResolves: boolean; hasMx: boolean }> {
-  let hasMx = false
+const systemResolver = new Resolver()
+const publicResolver = new Resolver()
+publicResolver.setServers(['1.1.1.1', '8.8.8.8'])
+const DEFINITIVE = new Set(['ENODATA', 'ENOTFOUND'])
+
+/** true / false only when DNS gave a definitive answer; undefined when the lookup itself failed. */
+async function mxVia(r: Resolver, domain: string): Promise<boolean | undefined> {
+  try {
+    return (await withTimeout(r.resolveMx(domain))).length > 0
+  } catch (e) {
+    const code = (e as { code?: string } | null)?.code
+    return code && DEFINITIVE.has(code) ? false : undefined
+  }
+}
+
+async function checkDomain(domain: string): Promise<{ domainResolves: boolean; hasMx: boolean | null }> {
+  const mx = (await mxVia(systemResolver, domain)) ?? (await mxVia(publicResolver, domain))
+  if (mx === true) return { domainResolves: true, hasMx: true }
   let domainResolves = false
   try {
-    hasMx = (await withTimeout(resolveMx(domain))).length > 0
-    domainResolves = hasMx
-  } catch { /* no MX records */ }
-  if (!hasMx) {
-    try {
-      domainResolves = (await withTimeout(resolve4(domain))).length > 0
-    } catch {
-      try {
-        domainResolves = (await withTimeout(resolve6(domain))).length > 0
-      } catch { /* unresolved */ }
-    }
-  }
-  return { domainResolves, hasMx }
+    domainResolves = (await withTimeout(lookup(domain, { all: true }))).length > 0
+  } catch { /* unresolved */ }
+  return { domainResolves, hasMx: mx ?? null }
 }
 
 export async function scanWebsite(siteUrl: string, o: ScanOptions): Promise<ScanResult> {
@@ -118,20 +140,25 @@ export async function scanWebsite(siteUrl: string, o: ScanOptions): Promise<Scan
     return result
   }
 
-  let home: Page
-  try {
-    home = await client.fetchPage(siteUrl)
-  } catch (e) {
-    if (!(e instanceof FetchError)) throw e
+    let home: Page | undefined
+  let failure: FetchError | undefined
+  for (let attempt = 1; attempt <= 2 && !home; attempt++) {
+    try {
+      home = await client.fetchPage(siteUrl)
+    } catch (e) {
+      if (!(e instanceof FetchError)) throw e
+      failure = e
+      if (e.kind !== 'timeout' && e.kind !== 'network') break // only transient failures are retried
+      if (attempt === 1) await new Promise<void>((resolve) => setTimeout(resolve, 5000))
+    }
+  }
+  if (!home) {
+    const e = failure ?? new FetchError('network', 'unknown failure')
     if (e.kind === 'dns') return finish('dead', e.message)
     if (e.kind === 'robots') return finish('blocked_by_robots', e.message)
     if (e.kind === 'not_html') return finish('not_html', e.message)
     return finish('unreachable', `${e.kind}: ${e.message}`)
   }
-  result.finalUrl = home.finalUrl
-  if (home.status === 404 || home.status === 410) return finish('dead', `HTTP ${home.status}`)
-  if ([401, 403, 429, 503].includes(home.status)) return finish('blocked', `HTTP ${home.status}`)
-  if (home.status < 200 || home.status >= 300) return finish('unreachable', `HTTP ${home.status}`)
 
   const finalHost = stripWww(new URL(home.finalUrl).hostname)
   const siteDomains = [o.knownDomain ? stripWww(o.knownDomain) : null, finalHost].filter((d): d is string => !!d)
@@ -150,7 +177,7 @@ export async function scanWebsite(siteUrl: string, o: ScanOptions): Promise<Scan
       keep(found, {
         type: 'email', value: email, normalizedValue: email, source: r.source, pageUrl: page.finalUrl,
         context: r.context, confidence: emailConfidence(r.source, contactPage, onDomain, free),
-        classification: classifyEmail(email), offDomain: !onDomain && !free,
+        classification: classifyEmail(email), role: emailRole(email), offDomain: !onDomain && !free,
       })
     }
     for (const r of ex.phones) {
@@ -162,13 +189,13 @@ export async function scanWebsite(siteUrl: string, o: ScanOptions): Promise<Scan
     }
     for (const r of ex.socials) {
       keep(found, {
-        type: 'social', value: r.url, normalizedValue: r.url, source: r.source, pageUrl: page.finalUrl,
+        type: 'social', value: r.url, normalizedValue: r.url.toLowerCase(), source: r.source, pageUrl: page.finalUrl,
         context: r.context, confidence: r.source === 'jsonld' ? 75 : 55, classification: 'business',
       })
     }
     if (ex.hasContactForm) {
       keep(found, {
-        type: 'contact_form', value: page.finalUrl, normalizedValue: normalizeUrl(page.finalUrl), source: 'form',
+        type: 'contact_form', value: page.finalUrl, normalizedValue: `form:${finalHost}`, source: 'form',
         pageUrl: page.finalUrl, context: ex.title, confidence: 70 + (contactPage ? 5 : 0), classification: 'business',
       })
     }
@@ -220,7 +247,7 @@ export async function scanWebsite(siteUrl: string, o: ScanOptions): Promise<Scan
   // Email domain checks (DNS only, nothing is sent to anyone)
   const contacts = [...found.values()]
   const domains = new Set(contacts.filter((c) => c.type === 'email').map((c) => c.normalizedValue.split('@')[1] ?? ''))
-  const checks = new Map<string, { domainResolves: boolean; hasMx: boolean }>()
+  const checks = new Map<string, { domainResolves: boolean; hasMx: boolean | null }>()
   for (const d of domains) if (d) checks.set(d, await checkDomain(d))
   const checkedAt = new Date().toISOString()
   for (const c of contacts) {

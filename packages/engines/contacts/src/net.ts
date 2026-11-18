@@ -49,20 +49,20 @@ async function assertPublic(u: URL): Promise<void> {
     return
   }
   let addrs: { address: string }[]
-  try {
+    try {
     addrs = await lookup(host, { all: true })
-  } catch {
-    throw new FetchError('dns', `Cannot resolve ${host}`)
-  }
-  if (addrs.length === 0 || addrs.some((a) => isPrivateIp(a.address))) {
-    throw new FetchError('blocked_host', `${host} resolves to a private address`)
+  } catch (e) {
+    const code = (e as { code?: string } | null)?.code
+    throw code === 'ENOTFOUND' || code === 'ENODATA'
+      ? new FetchError('dns', `Cannot resolve ${host}`)
+      : new FetchError('network', `DNS lookup failed for ${host} (${code ?? 'unknown'})`)
   }
 }
 
 function classify(e: unknown): FetchError {
   if (e instanceof FetchError) return e
   const code = (e as { cause?: { code?: string } } | null)?.cause?.code
-  if (code === 'ENOTFOUND' || code === 'EAI_AGAIN') return new FetchError('dns', 'DNS lookup failed')
+  if (code === 'ENOTFOUND') return new FetchError('dns', 'DNS lookup failed')
   const name = e instanceof Error ? e.name : ''
   if (name === 'TimeoutError' || name === 'AbortError') return new FetchError('timeout', 'Request timed out')
   return new FetchError('network', e instanceof Error ? `${e.message}${code ? ` (${code})` : ''}` : String(e))

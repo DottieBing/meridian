@@ -113,6 +113,7 @@ export async function runContactScan(db: Db, id: string, log: Log): Promise<Reco
           value: c.value,
           normalizedValue: c.normalizedValue,
           classification: c.classification,
+          role: c.role ?? null,
           validation: c.validation ?? null,
           confidence: c.confidence,
           evidenceId: ev.id,
@@ -125,8 +126,10 @@ export async function runContactScan(db: Db, id: string, log: Log): Promise<Reco
             websiteId: site.id,
             validation: sql`coalesce(excluded.validation, ${contactPoints.validation})`,
             classification: sql`case when excluded.classification <> 'unknown' then excluded.classification else ${contactPoints.classification} end`,
+            role: sql`coalesce(excluded.role, ${contactPoints.role})`,
             lastSeenAt: new Date(),
             staleAt: null,
+            value: sql`case when excluded.confidence > ${contactPoints.confidence} then excluded.value else ${contactPoints.value} end`,
           },
         })
         .returning({ inserted: sql<boolean>`(xmax = 0)` })

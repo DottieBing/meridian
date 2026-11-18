@@ -1,4 +1,5 @@
 import type { ReactNode } from 'react'
+import { BusinessStats } from '../components/dashboard/BusinessStats'
 import { PageHeader } from '../components/ui/PageHeader'
 import { fmtUptime } from '../lib/format'
 import { useHealth, useWorkspaces } from '../lib/queries'
@@ -38,7 +39,7 @@ export function Dashboard() {
     <div className="mx-auto max-w-5xl p-6 lg:p-8">
       <PageHeader
         title="Dashboard"
-        description="System status is live. Business numbers appear here once discovery exists."
+        description="System status and discovery numbers, live from your own database."
       />
 
       <div className="mt-6 grid gap-3 sm:grid-cols-3">
@@ -59,6 +60,8 @@ export function Dashboard() {
           <div className="mt-1 font-mono text-xs text-muted">{ws ? `${ws.id.slice(0, 8)}…` : 'Not loaded'}</div>
         </Card>
       </div>
+
+      <BusinessStats />
 
       <div className="mt-6 rounded-xl border border-border bg-surface">
         <div className="border-b border-border px-4 py-3 font-mono text-[11px] tracking-wider text-muted">

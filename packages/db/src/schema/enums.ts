@@ -71,3 +71,16 @@ export type Severity = (typeof SEVERITIES)[number]
 
 export const DISCOVERY_RUN_STATUSES = ['queued', 'running', 'completed', 'failed'] as const
 export type DiscoveryRunStatus = (typeof DISCOVERY_RUN_STATUSES)[number]
+
+export const CONTACT_ROLES = [
+  'general',
+  'booking',
+  'sales',
+  'support',
+  'privacy_legal',
+  'technical',
+  'no_reply',
+  'named_person',
+  'unknown',
+] as const
+export type ContactRole = (typeof CONTACT_ROLES)[number]
