@@ -13,7 +13,8 @@
     "@meridian/db": "workspace:*",
     "@meridian/discovery": "workspace:*",
     "@meridian/queue": "workspace:*",
-    "@meridian/shared": "workspace:*"
+    "@meridian/shared": "workspace:*",
+    "@meridian/website": "workspace:*"
   },
   "devDependencies": {
     "@types/node": "^26.6.6",

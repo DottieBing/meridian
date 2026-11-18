@@ -15,6 +15,7 @@
     "@meridian/discovery": "workspace:*",
     "@meridian/queue": "workspace:*",
     "@meridian/shared": "workspace:*",
+    "@meridian/website": "workspace:*",
     "fastify": "^5.12.8"
   },
   "devDependencies": {

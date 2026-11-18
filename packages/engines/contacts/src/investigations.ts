@@ -3,6 +3,7 @@ import {
 } from '@meridian/db'
 import { scanWebsite } from './scan'
 import type { Log } from './types'
+import { savePageSnapshots } from '@meridian/crawl'
 
 export const METHOD_VERSION = 'contact-scan/1'
 
@@ -73,6 +74,17 @@ export async function runContactScan(db: Db, id: string, log: Log): Promise<Reco
     knownDomain: site.domain,
     log,
   })
+
+    let snapshotsSaved = 0
+  try {
+    snapshotsSaved = await savePageSnapshots(
+      db,
+      { workspaceId: inv.workspaceId, websiteId: site.id },
+      result.captured,
+    )
+  } catch (e) {
+    log(`snapshot save failed for ${site.domain}: ${e instanceof Error ? e.message : String(e)}`)
+  }
 
   let suppressedSkipped = 0
   const kept = result.contacts.filter((c) => {
@@ -172,5 +184,6 @@ export async function runContactScan(db: Db, id: string, log: Log): Promise<Reco
     updatedContacts: updated,
     suppressedSkipped,
     durationMs: result.durationMs,
+    snapshotsSaved,
   })
 }

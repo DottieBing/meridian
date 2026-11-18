@@ -28,6 +28,9 @@ importers:
       '@meridian/shared':
         specifier: workspace:*
         version: link:../../packages/shared
+      '@meridian/website':
+        specifier: workspace:*
+        version: link:../../packages/engines/website
       fastify:
         specifier: ^5.12.8
         version: 5.12.8
@@ -135,6 +138,9 @@ importers:
       '@meridian/shared':
         specifier: workspace:*
         version: link:../../packages/shared
+      '@meridian/website':
+        specifier: workspace:*
+        version: link:../../packages/engines/website
     devDependencies:
       '@types/node':
         specifier: ^26.6.6
@@ -142,6 +148,19 @@ importers:
       tsx:
         specifier: ^4.23.15
         version: 4.23.15
+      typescript:
+        specifier: ^7.0.2
+        version: 7.0.2
+
+  packages/crawl:
+    dependencies:
+      '@meridian/db':
+        specifier: workspace:*
+        version: link:../db
+    devDependencies:
+      '@types/node':
+        specifier: ^26.6.6
+        version: 26.6.6
       typescript:
         specifier: ^7.0.2
         version: 7.0.2
@@ -176,6 +195,9 @@ importers:
 
   packages/engines/contacts:
     dependencies:
+      '@meridian/crawl':
+        specifier: workspace:*
+        version: link:../../crawl
       '@meridian/db':
         specifier: workspace:*
         version: link:../../db
@@ -207,6 +229,28 @@ importers:
       libphonenumber-js:
         specifier: ^1.13.16
         version: 1.13.16
+    devDependencies:
+      '@types/node':
+        specifier: ^26.6.6
+        version: 26.6.6
+      tsx:
+        specifier: ^4.23.15
+        version: 4.23.15
+      typescript:
+        specifier: ^7.0.2
+        version: 7.0.2
+
+  packages/engines/website:
+    dependencies:
+      '@meridian/crawl':
+        specifier: workspace:*
+        version: link:../../crawl
+      '@meridian/db':
+        specifier: workspace:*
+        version: link:../../db
+      cheerio:
+        specifier: ^1.2.0
+        version: 1.2.0
     devDependencies:
       '@types/node':
         specifier: ^26.6.6

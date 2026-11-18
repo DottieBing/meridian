@@ -4,6 +4,7 @@ export const QUEUES = {
   systemPing: 'system-ping',
   discoverySearch: 'discovery-search',
   contactScan: 'contact-scan',
+  websiteAudit: 'website-audit',
 } as const
 
 export type QueueName = (typeof QUEUES)[keyof typeof QUEUES]
@@ -38,3 +39,6 @@ export type DiscoverySearchPayload = z.infer<typeof discoverySearchPayload>
 
 export const contactScanPayload = z.object({ investigationId: z.string().uuid() })
 export type ContactScanPayload = z.infer<typeof contactScanPayload>
+
+export const websiteAuditPayload = z.object({ investigationId: z.string().uuid() })
+export type WebsiteAuditPayload = z.infer<typeof websiteAuditPayload>

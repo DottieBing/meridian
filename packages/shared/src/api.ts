@@ -36,3 +36,10 @@ export const bulkContactScanRequest = z.object({
   city: z.string().max(100).optional(),
   rescanAfterDays: z.number().int().min(1).max(365).default(30),
 })
+
+export const bulkWebsiteAuditRequest = z.object({
+  limit: z.number().int().min(1).max(500).default(25),
+  industry: z.string().max(60).optional(),
+  city: z.string().max(100).optional(),
+  auditAfterDays: z.number().int().min(1).max(365).default(30),
+})

@@ -1,6 +1,6 @@
 import { Resolver, lookup } from 'node:dns/promises'
 import { cleanEmail, extractFromHtml } from './extract'
-import { FetchError, PoliteClient, type Page } from './net'
+import { FetchError, PoliteClient, type Page } from '@meridian/crawl'
 import type { FoundContact, Log, ScanOutcome, ScanResult } from './types'
 import type { ContactRole } from '@meridian/db'
 
@@ -130,7 +130,7 @@ export async function scanWebsite(siteUrl: string, o: ScanOptions): Promise<Scan
     maxBytes: 1_048_576,
     maxRedirects: 5,
   })
-  const result: ScanResult = { outcome: 'ok', siteUrl, pages: [], skipped: [], contacts: [], durationMs: 0 }
+  const result: ScanResult = { outcome: 'ok', siteUrl, pages: [], skipped: [], contacts: [], captured: [], durationMs: 0 }
   const found = new Map<string, FoundContact>()
 
   const finish = (outcome: ScanOutcome, error?: string): ScanResult => {
@@ -159,12 +159,14 @@ export async function scanWebsite(siteUrl: string, o: ScanOptions): Promise<Scan
     if (e.kind === 'not_html') return finish('not_html', e.message)
     return finish('unreachable', `${e.kind}: ${e.message}`)
   }
+  result.finalUrl = home.finalUrl
 
   const finalHost = stripWww(new URL(home.finalUrl).hostname)
   const siteDomains = [o.knownDomain ? stripWww(o.knownDomain) : null, finalHost].filter((d): d is string => !!d)
 
   const collect = (page: Page) => {
     result.pages.push({ url: page.finalUrl, status: page.status, bytes: page.bytes, contentHash: page.hash })
+    result.captured.push(page)
     const ex = extractFromHtml(page.html, page.finalUrl, o.region)
     const contactPage = isContactPageUrl(page.finalUrl)
 

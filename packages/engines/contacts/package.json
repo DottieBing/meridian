@@ -13,6 +13,7 @@
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
+    "@meridian/crawl": "workspace:*",
     "@meridian/db": "workspace:*",
     "cheerio": "^1.2.0",
     "libphonenumber-js": "^1.13.16"

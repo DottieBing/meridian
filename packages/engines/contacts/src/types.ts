@@ -1,4 +1,5 @@
 import type { ContactRole } from '@meridian/db'
+import type { Page } from '@meridian/crawl'
 
 export type Log = (message: string) => void
 
@@ -32,6 +33,7 @@ export type ScanResult = {
   pages: PageResult[]
   skipped: { url: string; reason: string }[]
   contacts: FoundContact[]
+  captured: Page[]
   durationMs: number
   error?: string
 }

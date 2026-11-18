@@ -1,0 +1,26 @@
+{
+  "name": "@meridian/website",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "main": "./src/index.ts",
+  "types": "./src/index.ts",
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "scripts": {
+    "probe": "tsx --env-file=../../../.env src/probe.ts",
+    "typecheck": "tsc --noEmit",
+    "test": "node --import tsx --test src/rules.test.ts"
+  },
+  "dependencies": {
+    "@meridian/crawl": "workspace:*",
+    "@meridian/db": "workspace:*",
+    "cheerio": "^1.2.0"
+  },
+  "devDependencies": {
+    "@types/node": "^26.6.6",
+    "tsx": "^4.23.15",
+    "typescript": "^7.0.2"
+  }
+}

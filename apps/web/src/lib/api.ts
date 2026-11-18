@@ -1,4 +1,5 @@
 import type {
+  AuditDto,
   BusinessDetail,
   BusinessFilters,
   BusinessListItem,
@@ -14,6 +15,8 @@ async function getJson<T>(url: string, init?: RequestInit): Promise<T> {
   if (!res.ok) throw new Error(`Request failed: HTTP ${res.status}`)
   return (await res.json()) as T
 }
+
+const postJson = { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: '{}' }
 
 export async function fetchHealth(): Promise<HealthResponse> {
   const res = await fetch('/health')
@@ -45,15 +48,26 @@ export async function fetchPresets(): Promise<PresetDto[]> {
   return (await getJson<{ data: PresetDto[] }>('/api/v1/discovery/presets')).data
 }
 
-export async function fetchScans(businessId: string): Promise<InvestigationDto[]> {
-  const p = new URLSearchParams({ businessId, kind: 'contact_scan', limit: '10' })
+async function fetchRuns(businessId: string, kind: string, limit: number): Promise<InvestigationDto[]> {
+  const p = new URLSearchParams({ businessId, kind, limit: String(limit) })
   return (await getJson<{ data: InvestigationDto[] }>(`/api/v1/investigations?${p.toString()}`)).data
 }
 
+export const fetchScans = (businessId: string) => fetchRuns(businessId, 'contact_scan', 10)
+export const fetchAuditRuns = (businessId: string) => fetchRuns(businessId, 'website_audit', 5)
+
 export async function startContactScan(businessId: string): Promise<{ investigationId: string }> {
-  const res = await getJson<{ data: { investigationId: string } }>(
-    `/api/v1/businesses/${businessId}/contact-scan`,
-    { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: '{}' },
-  )
-  return res.data
+  return (
+    await getJson<{ data: { investigationId: string } }>(`/api/v1/businesses/${businessId}/contact-scan`, postJson)
+  ).data
+}
+
+export async function startWebsiteAudit(businessId: string): Promise<{ investigationId: string }> {
+  return (
+    await getJson<{ data: { investigationId: string } }>(`/api/v1/businesses/${businessId}/website-audit`, postJson)
+  ).data
+}
+
+export async function fetchAudit(businessId: string): Promise<AuditDto | null> {
+  return (await getJson<{ data: AuditDto | null }>(`/api/v1/businesses/${businessId}/audit`)).data
 }

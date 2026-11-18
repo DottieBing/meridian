@@ -1,6 +1,8 @@
 import type { BusinessFilters, InvestigationDto } from '@meridian/shared/api-types'
 import { keepPreviousData, useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import {
+  fetchAudit,
+  fetchAuditRuns,
   fetchBusiness,
   fetchBusinesses,
   fetchHealth,
@@ -8,6 +10,7 @@ import {
   fetchScans,
   fetchWorkspaces,
   startContactScan,
+  startWebsiteAudit,
 } from './api'
 
 export const isActiveScan = (s: InvestigationDto) => s.status === 'queued' || s.status === 'running'
@@ -61,5 +64,31 @@ export function useStartScan(businessId: string) {
   return useMutation({
     mutationFn: () => startContactScan(businessId),
     onSuccess: () => qc.invalidateQueries({ queryKey: ['scans', businessId] }),
+  })
+}
+
+export function useAudit(businessId: string) {
+  return useQuery({
+    queryKey: ['audit', businessId],
+    queryFn: () => fetchAudit(businessId),
+    enabled: businessId.length > 0,
+    retry: false,
+  })
+}
+
+export function useAuditRuns(businessId: string) {
+  return useQuery({
+    queryKey: ['audit-runs', businessId],
+    queryFn: () => fetchAuditRuns(businessId),
+    enabled: businessId.length > 0,
+    refetchInterval: (query) => (query.state.data?.some(isActiveScan) ? 2000 : false),
+  })
+}
+
+export function useStartAudit(businessId: string) {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: () => startWebsiteAudit(businessId),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ['audit-runs', businessId] }),
   })
 }

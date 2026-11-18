@@ -144,3 +144,46 @@ export type InvestigationDto = {
   finishedAt: string | null
   createdAt: string
 }
+
+export type FindingSeverity = 'info' | 'low' | 'medium' | 'high' | 'critical'
+
+export type FindingDto = {
+  id: string
+  code: string
+  category: string
+  severity: FindingSeverity
+  isObjective: boolean
+  title: string
+  detail: string | null
+  affectedUrl: string | null
+  confidence: number
+  evidence: {
+    kind: string
+    method: string
+    sourceUrl: string | null
+    excerpt: string | null
+    capturedAt: string
+  }
+}
+
+export type AuditSummary = {
+  outcome?: string
+  error?: string | null
+  mainPage?: string
+  pagesAudited?: number
+  findings?: number
+  bySeverity?: Record<string, number>
+  truncatedPages?: number
+  durationMs?: number
+}
+
+export type AuditDto = {
+  investigation: {
+    id: string
+    status: string
+    createdAt: string
+    finishedAt: string | null
+    summary: AuditSummary | null
+  }
+  findings: FindingDto[]
+}

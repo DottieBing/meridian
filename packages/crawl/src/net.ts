@@ -49,13 +49,16 @@ async function assertPublic(u: URL): Promise<void> {
     return
   }
   let addrs: { address: string }[]
-    try {
+  try {
     addrs = await lookup(host, { all: true })
   } catch (e) {
     const code = (e as { code?: string } | null)?.code
     throw code === 'ENOTFOUND' || code === 'ENODATA'
       ? new FetchError('dns', `Cannot resolve ${host}`)
       : new FetchError('network', `DNS lookup failed for ${host} (${code ?? 'unknown'})`)
+  }
+  if (addrs.length === 0 || addrs.some((a) => isPrivateIp(a.address))) {
+    throw new FetchError('blocked_host', `${host} resolves to a private address`)
   }
 }
 
@@ -69,7 +72,8 @@ function classify(e: unknown): FetchError {
 }
 
 async function readCapped(
-  res: Response, maxBytes: number,
+  res: Response,
+  maxBytes: number,
 ): Promise<{ text: string; bytes: number; truncated: boolean }> {
   const reader = res.body?.getReader()
   if (!reader) return { text: '', bytes: 0, truncated: false }
@@ -103,14 +107,37 @@ async function readCapped(
   return { text, bytes: total, truncated }
 }
 
+function headerMap(h: Headers): Record<string, string> {
+  const out: Record<string, string> = {}
+  h.forEach((value, key) => {
+    if (key !== 'set-cookie') out[key] = value
+  })
+  return out
+}
+
+export type Hop = { url: string; status: number }
+
 export type Page = {
   requestedUrl: string
   finalUrl: string
   status: number
+  contentType: string
   html: string
   bytes: number
   hash: string
   truncated: boolean
+  headers: Record<string, string>
+  redirects: Hop[]
+  timing: { ttfbMs: number; totalMs: number }
+}
+
+export type Resource = {
+  finalUrl: string
+  status: number
+  body: string
+  bytes: number
+  contentType: string
+  headers: Record<string, string>
 }
 
 export type ClientOptions = {
@@ -128,6 +155,9 @@ type Raw = {
   body: string
   bytes: number
   truncated: boolean
+  headers: Record<string, string>
+  ttfbMs: number
+  totalMs: number
 }
 
 export class PoliteClient {
@@ -146,10 +176,15 @@ export class PoliteClient {
   }
 
   private async single(
-    url: URL, accept: string, maxBytes: number, delayMs: number, requireHtml: boolean,
+    url: URL,
+    accept: string,
+    maxBytes: number,
+    delayMs: number,
+    requireHtml: boolean,
   ): Promise<Raw> {
     await assertPublic(url)
     await this.pace(url.host, delayMs)
+    const t0 = performance.now()
     let res: Response
     try {
       res = await fetch(url, {
@@ -164,11 +199,13 @@ export class PoliteClient {
     } catch (e) {
       throw classify(e)
     }
+    const ttfbMs = performance.now() - t0
+    const headers = headerMap(res.headers)
     const location = res.headers.get('location') ?? undefined
     const contentType = res.headers.get('content-type') ?? ''
     if (res.status >= 300 && res.status < 400 && location) {
       await res.body?.cancel().catch(() => undefined)
-      return { status: res.status, location, contentType, body: '', bytes: 0, truncated: false }
+      return { status: res.status, location, contentType, body: '', bytes: 0, truncated: false, headers, ttfbMs, totalMs: ttfbMs }
     }
     if (requireHtml && res.status < 300 && contentType && !/html|xml/i.test(contentType)) {
       await res.body?.cancel().catch(() => undefined)
@@ -176,16 +213,31 @@ export class PoliteClient {
     }
     try {
       const b = await readCapped(res, maxBytes)
-      return { status: res.status, location: undefined, contentType, body: b.text, bytes: b.bytes, truncated: b.truncated }
+      return {
+        status: res.status,
+        location: undefined,
+        contentType,
+        body: b.text,
+        bytes: b.bytes,
+        truncated: b.truncated,
+        headers,
+        ttfbMs,
+        totalMs: performance.now() - t0,
+      }
     } catch (e) {
       throw classify(e)
     }
   }
 
   private async follow(
-    start: URL, accept: string, maxBytes: number, checkRobots: boolean, requireHtml: boolean,
-  ): Promise<Raw & { finalUrl: URL }> {
+    start: URL,
+    accept: string,
+    maxBytes: number,
+    checkRobots: boolean,
+    requireHtml: boolean,
+  ): Promise<Raw & { finalUrl: URL; redirects: Hop[] }> {
     let url = start
+    const redirects: Hop[] = []
     for (let hop = 0; hop <= this.o.maxRedirects; hop++) {
       let delay = this.o.minGapMs
       if (checkRobots) {
@@ -197,6 +249,7 @@ export class PoliteClient {
       }
       const r = await this.single(url, accept, maxBytes, delay, requireHtml)
       if (r.status >= 300 && r.status < 400 && r.location) {
+        redirects.push({ url: url.toString(), status: r.status })
         try {
           url = new URL(r.location, url)
         } catch {
@@ -204,7 +257,7 @@ export class PoliteClient {
         }
         continue
       }
-      return { ...r, finalUrl: url }
+      return { ...r, finalUrl: url, redirects }
     }
     throw new FetchError('redirects', 'Too many redirects')
   }
@@ -238,10 +291,32 @@ export class PoliteClient {
       requestedUrl: raw,
       finalUrl: r.finalUrl.toString(),
       status: r.status,
+      contentType: r.contentType,
       html: ok ? r.body : '',
       bytes: r.bytes,
       hash: createHash('sha256').update(r.body).digest('hex'),
       truncated: r.truncated,
+      headers: r.headers,
+      redirects: r.redirects,
+      timing: { ttfbMs: r.ttfbMs, totalMs: r.totalMs },
+    }
+  }
+
+  async fetchResource(raw: string, opts: { maxBytes?: number; robots?: boolean } = {}): Promise<Resource> {
+    let u: URL
+    try {
+      u = new URL(raw)
+    } catch {
+      throw new FetchError('bad_url', `Invalid URL ${raw}`)
+    }
+    const r = await this.follow(u, '*/*', opts.maxBytes ?? 512 * 1024, opts.robots ?? false, false)
+    return {
+      finalUrl: r.finalUrl.toString(),
+      status: r.status,
+      body: r.body,
+      bytes: r.bytes,
+      contentType: r.contentType,
+      headers: r.headers,
     }
   }
 }

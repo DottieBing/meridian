@@ -8,6 +8,7 @@ import { ScansPanel } from '../components/leads/ScansPanel'
 import { Badge } from '../components/ui/Badge'
 import { Tabs, type TabDef } from '../components/ui/Tabs'
 import { isActiveScan, useBusiness, useScans, useStartScan } from '../lib/queries'
+import { AuditPanel } from '../components/leads/AuditPanel'
 
 export function BusinessDetailPage() {
   const { id = '' } = useParams()
@@ -56,7 +57,7 @@ export function BusinessDetailPage() {
     { id: 'overview', label: 'Overview' },
     { id: 'contacts', label: `Contacts (${liveContacts})` },
     { id: 'scans', label: 'Scans' },
-    { id: 'audit', label: 'Website Audit', phase: 4 },
+    { id: 'audit', label: 'Website Audit' },
     { id: 'opportunities', label: 'Opportunities', phase: 6 },
     { id: 'reports', label: 'Reports', phase: 5 },
     { id: 'activity', label: 'Activity', phase: 8 },
@@ -107,6 +108,7 @@ export function BusinessDetailPage() {
       <div className="mt-5">
         {tab === 'overview' && <OverviewPanel biz={b} />}
         {tab === 'contacts' && <ContactsPanel contacts={b.contacts} />}
+        {tab === 'audit' && <AuditPanel businessId={b.id} hasWebsite={Boolean(site)} />}
         {tab === 'scans' &&
           (scans.isError ? (
             <p className="text-sm text-muted">Couldn’t load scan history.</p>
