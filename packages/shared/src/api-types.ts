@@ -28,8 +28,19 @@ export type BusinessFilters = {
   hasWebsite?: boolean
   hasEmail?: boolean
   hasPhone?: boolean
+  contactable?: boolean
+  audited?: boolean
+  minSeverity?: 'low' | 'medium' | 'high' | 'critical'
+  sort?: 'recent' | 'issues'
   limit: number
   offset: number
+}
+
+export type BusinessAuditSummary = {
+  outcome: string | null
+  issueWeight: number
+  issueCount: number
+  signals: string[]
 }
 
 export type BusinessListItem = {
@@ -46,6 +57,8 @@ export type BusinessListItem = {
   emailCount: number
   phoneCount: number
   locationCount: number
+  contactable: boolean
+  audit: BusinessAuditSummary | null
 }
 
 export type ContactType = 'email' | 'phone' | 'social' | 'contact_form' | 'address'

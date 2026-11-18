@@ -4,14 +4,16 @@ import { isIP } from 'node:net'
 import { ALLOW_ALL, DENY_ALL, parseRobots, type Robots } from './robots'
 
 export type FetchErrorKind =
-  | 'dns' | 'timeout' | 'network' | 'blocked_host' | 'redirects' | 'not_html' | 'robots' | 'bad_url'
+  | 'dns' | 'timeout' | 'network' | 'blocked_host' | 'redirects' | 'not_html' | 'robots' | 'bad_url' | 'tls'
 
 export class FetchError extends Error {
   readonly kind: FetchErrorKind
-  constructor(kind: FetchErrorKind, message: string) {
+  readonly code: string | undefined
+  constructor(kind: FetchErrorKind, message: string, code?: string) {
     super(message)
     this.name = 'FetchError'
     this.kind = kind
+    this.code = code
   }
 }
 
@@ -62,10 +64,15 @@ async function assertPublic(u: URL): Promise<void> {
   }
 }
 
+// Only certificate failures that are unambiguous. Incomplete chains are left out on purpose:
+// browsers can repair those, and Node cannot, so flagging them would be a false alarm.
+const TLS_DEFINITIVE = new Set(['ERR_TLS_CERT_ALTNAME_INVALID', 'CERT_HAS_EXPIRED', 'DEPTH_ZERO_SELF_SIGNED_CERT'])
+
 function classify(e: unknown): FetchError {
   if (e instanceof FetchError) return e
   const code = (e as { cause?: { code?: string } } | null)?.cause?.code
   if (code === 'ENOTFOUND') return new FetchError('dns', 'DNS lookup failed')
+  if (code && TLS_DEFINITIVE.has(code)) return new FetchError('tls', `TLS certificate problem (${code})`, code)
   const name = e instanceof Error ? e.name : ''
   if (name === 'TimeoutError' || name === 'AbortError') return new FetchError('timeout', 'Request timed out')
   return new FetchError('network', e instanceof Error ? `${e.message}${code ? ` (${code})` : ''}` : String(e))
@@ -299,6 +306,24 @@ export class PoliteClient {
       headers: r.headers,
       redirects: r.redirects,
       timing: { ttfbMs: r.ttfbMs, totalMs: r.totalMs },
+    }
+  }
+
+  /** Fetches the stored address; if that deep link is gone (404/410), tries the site's front page once. */
+  async fetchEntry(raw: string): Promise<Page> {
+    const page = await this.fetchPage(raw)
+    if (page.status !== 404 && page.status !== 410) return page
+    let u: URL
+    try {
+      u = new URL(raw)
+    } catch {
+      return page
+    }
+    if (u.pathname === '/' || u.pathname === '') return page
+    try {
+      return await this.fetchPage(`${u.origin}/`)
+    } catch {
+      return page
     }
   }
 

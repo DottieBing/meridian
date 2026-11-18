@@ -144,7 +144,7 @@ export async function scanWebsite(siteUrl: string, o: ScanOptions): Promise<Scan
   let failure: FetchError | undefined
   for (let attempt = 1; attempt <= 2 && !home; attempt++) {
     try {
-      home = await client.fetchPage(siteUrl)
+      home = await client.fetchEntry(siteUrl)
     } catch (e) {
       if (!(e instanceof FetchError)) throw e
       failure = e

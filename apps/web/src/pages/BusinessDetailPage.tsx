@@ -24,7 +24,11 @@ export function BusinessDetailPage() {
   const wasScanning = useRef(false)
 
   useEffect(() => {
-    if (wasScanning.current && !scanning) void qc.invalidateQueries({ queryKey: ['business', id] })
+    if (wasScanning.current && !scanning) {
+      void qc.invalidateQueries({ queryKey: ['business', id] })
+      void qc.invalidateQueries({ queryKey: ['audit-runs', id] })
+      void qc.invalidateQueries({ queryKey: ['audit', id] })
+    }
     wasScanning.current = scanning
   }, [scanning, id, qc])
 
@@ -94,7 +98,7 @@ export function BusinessDetailPage() {
           className="inline-flex items-center gap-2 rounded-md bg-accent px-3.5 py-2 text-sm font-medium text-on-accent transition-opacity disabled:opacity-50"
         >
           <Radar size={15} className={scanning ? 'animate-pulse' : ''} />
-          {scanning ? 'Scanning…' : 'Scan website for contacts'}
+          {scanning ? 'Scanning…' : 'Analyse website'}
         </button>
       </div>
       {startScan.isError && (
@@ -108,7 +112,7 @@ export function BusinessDetailPage() {
       <div className="mt-5">
         {tab === 'overview' && <OverviewPanel biz={b} />}
         {tab === 'contacts' && <ContactsPanel contacts={b.contacts} />}
-        {tab === 'audit' && <AuditPanel businessId={b.id} hasWebsite={Boolean(site)} />}
+        {tab === 'audit' && <AuditPanel businessId={b.id} hasWebsite={Boolean(site)} siteUrl={site?.url} />}
         {tab === 'scans' &&
           (scans.isError ? (
             <p className="text-sm text-muted">Couldn’t load scan history.</p>

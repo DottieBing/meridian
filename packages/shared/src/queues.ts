@@ -37,7 +37,10 @@ export const discoverySearchPayload = discoverySearchBase
 
 export type DiscoverySearchPayload = z.infer<typeof discoverySearchPayload>
 
-export const contactScanPayload = z.object({ investigationId: z.string().uuid() })
+export const contactScanPayload = z.object({
+  investigationId: z.string().uuid(),
+  thenAudit: z.boolean().default(false),
+})
 export type ContactScanPayload = z.infer<typeof contactScanPayload>
 
 export const websiteAuditPayload = z.object({ investigationId: z.string().uuid() })

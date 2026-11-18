@@ -30,7 +30,7 @@ const CATEGORY: Record<string, string> = {
 const OUTCOME_NOTE: Record<string, string> = {
   dead: 'The website could not be found (the domain did not resolve).',
   unreachable: 'The website did not respond.',
-  blocked: 'The website refused our request.',
+  blocked: 'The website refused our request (HTTP 403). It may use bot protection. Meridian identifies itself honestly and does not try to get around such protection, so this site needs a manual look.',
   blocked_by_robots: "The website's robots.txt asks crawlers to stay away.",
   not_html: 'The address is not a web page.',
   suppressed: 'This domain is on the suppression list.',
@@ -88,7 +88,15 @@ function FindingRow({ f }: { f: FindingDto }) {
   )
 }
 
-export function AuditPanel({ businessId, hasWebsite }: { businessId: string; hasWebsite: boolean }) {
+export function AuditPanel({
+  businessId,
+  hasWebsite,
+  siteUrl,
+}: {
+  businessId: string
+  hasWebsite: boolean
+  siteUrl?: string | undefined
+}) {
   const qc = useQueryClient()
   const audit = useAudit(businessId)
   const runs = useAuditRuns(businessId)
@@ -105,7 +113,15 @@ export function AuditPanel({ businessId, hasWebsite }: { businessId: string; has
 
   const data = audit.data
   const summary = data?.investigation.summary
-  const ok = summary?.outcome === 'ok'
+  const ok = summary?.outcome === 'ok' || summary?.outcome === 'tls_error'
+
+  const deepLink = (() => {
+    try {
+      return siteUrl ? new URL(siteUrl).pathname.split('/').filter(Boolean).length >= 2 : false
+    } catch {
+      return false
+    }
+  })()
 
   return (
     <div className="space-y-4">
@@ -126,6 +142,13 @@ export function AuditPanel({ businessId, hasWebsite }: { businessId: string; has
         </button>
       </div>
       {start.isError && <p className="text-xs text-danger">Couldn’t start the audit. Is the worker running?</p>}
+
+      {deepLink && (
+        <p className="text-xs text-warn">
+          The stored website address is a deep page ({shortUrl(siteUrl ?? null)}). If it is a directory listing and
+          not the business’s own site, these findings describe the directory.
+        </p>
+      )}
 
       {audit.isPending && <div className="h-24 animate-pulse rounded-xl bg-border" />}
 
@@ -151,6 +174,11 @@ export function AuditPanel({ businessId, hasWebsite }: { businessId: string; has
 
       {data && summary && ok && (
         <>
+          {summary.outcome === 'tls_error' && (
+            <p className="text-xs text-warn">
+              The page itself could not be loaded because of the certificate problem, so only that was checked.
+            </p>
+          )}
           <div className="rounded-xl border border-border bg-surface p-4">
             <div className="flex flex-wrap items-center gap-2">
               {SEVERITY_ORDER.filter((s) => (summary.bySeverity?.[s] ?? 0) > 0).map((s) => (

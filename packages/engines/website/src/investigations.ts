@@ -11,7 +11,7 @@ import {
 } from '@meridian/db'
 import { AUDIT_METHOD_VERSION, runRules } from './audit'
 import { buildContext, loadPages, pickHome } from './context'
-import type { AuditFiles, Log } from './types'
+import type { AuditFiles, AuditPage, FindingDraft, Log } from './types'
 
 const FRESH_MS = 7 * 24 * 3600 * 1000
 
@@ -39,6 +39,83 @@ function statusOutcome(status: number): string | null {
   if ([401, 403, 429, 503].includes(status)) return 'blocked'
   if (status < 200 || status >= 300) return 'unreachable'
   return null
+}
+
+function tlsFinding(siteUrl: string, code: string): FindingDraft {
+  const reason =
+    code === 'CERT_HAS_EXPIRED'
+      ? 'has expired'
+      : code === 'ERR_TLS_CERT_ALTNAME_INVALID'
+        ? 'was issued for a different address'
+        : 'is self-signed and not trusted'
+  let origin = siteUrl
+  try {
+    origin = new URL(siteUrl).origin
+  } catch {
+    /* keep the raw address */
+  }
+  return {
+    code: 'security.tls.invalid_certificate',
+    category: 'security',
+    severity: 'high',
+    isObjective: true,
+    title: `The site’s security certificate is invalid`,
+    detail: `Opening ${origin} over HTTPS fails certificate verification: the certificate ${reason}. Browsers normally show visitors a full-page security warning, and many will leave. This was observed from the machine running Meridian, so re-test in a browser before relying on it.`,
+    affectedUrl: siteUrl,
+    confidence: 85,
+    evidence: {
+      kind: 'http_response',
+      method: 'website-audit:tls',
+      sourceUrl: siteUrl,
+      excerpt: `TLS verification error: ${code}`,
+      measurement: { code },
+    },
+  }
+}
+
+async function saveFindings(
+  db: Db,
+  inv: { id: string; workspaceId: string },
+  drafts: FindingDraft[],
+  byId: Map<string, AuditPage>,
+): Promise<void> {
+  await db.transaction(async (tx) => {
+    for (const f of drafts) {
+      const page = f.evidence.snapshotId ? byId.get(f.evidence.snapshotId) : undefined
+      const [ev] = await tx
+        .insert(evidence)
+        .values({
+          workspaceId: inv.workspaceId,
+          kind: f.evidence.kind,
+          sourceUrl: f.evidence.sourceUrl ?? page?.url ?? f.affectedUrl,
+          method: f.evidence.method,
+          excerpt: f.evidence.excerpt ?? null,
+          contentHash: page?.contentHash ?? null,
+          storagePath: page?.storagePath ?? null,
+          capturedAt: page?.capturedAt ?? new Date(),
+          metadata: {
+            investigationId: inv.id,
+            snapshotId: f.evidence.snapshotId ?? null,
+            auditor: AUDIT_METHOD_VERSION,
+            ...(f.evidence.measurement ? { measurement: f.evidence.measurement } : {}),
+          },
+        })
+        .returning({ id: evidence.id })
+      if (!ev) throw new Error('evidence insert returned no row')
+      await tx.insert(findingRows).values({
+        investigationId: inv.id,
+        category: f.category,
+        code: f.code,
+        severity: f.severity,
+        isObjective: f.isObjective,
+        title: f.title,
+        detail: f.detail,
+        affectedUrl: f.affectedUrl,
+        evidenceId: ev.id,
+        confidence: f.confidence,
+      })
+    }
+  })
 }
 
 async function checkFiles(client: PoliteClient, origin: string, log: Log): Promise<AuditFiles> {
@@ -129,9 +206,22 @@ export async function runWebsiteAudit(db: Db, id: string, log: Log): Promise<Rec
   if (!pages.some((p) => Date.now() - p.capturedAt.getTime() < FRESH_MS)) {
     let page: Page
     try {
-      page = await client.fetchPage(site.url)
+      page = await client.fetchEntry(site.url)
     } catch (e) {
       if (!(e instanceof FetchError)) throw e
+      if (e.kind === 'tls') {
+        await saveFindings(db, inv, [tlsFinding(site.url, e.code ?? 'UNKNOWN')], new Map())
+        return finishWith({
+          outcome: 'tls_error',
+          siteUrl: site.url,
+          error: `${e.kind}: ${e.message}`,
+          findings: 1,
+          bySeverity: { high: 1 },
+          byCategory: { security: 1 },
+          pagesAudited: 0,
+          durationMs: Date.now() - started,
+        })
+      }
       const outcome =
         e.kind === 'dns' ? 'dead' : e.kind === 'robots' ? 'blocked_by_robots' : e.kind === 'not_html' ? 'not_html' : 'unreachable'
       return fail(outcome, `${e.kind}: ${e.message}`)
@@ -152,44 +242,7 @@ export async function runWebsiteAudit(db: Db, id: string, log: Log): Promise<Rec
 
   const { findings, errors } = runRules(context)
   const byId = new Map(context.pages.map((p) => [p.snapshotId, p]))
-
-  await db.transaction(async (tx) => {
-    for (const f of findings) {
-      const page = f.evidence.snapshotId ? byId.get(f.evidence.snapshotId) : undefined
-      const [ev] = await tx
-        .insert(evidence)
-        .values({
-          workspaceId: inv.workspaceId,
-          kind: f.evidence.kind,
-          sourceUrl: f.evidence.sourceUrl ?? page?.url ?? f.affectedUrl,
-          method: f.evidence.method,
-          excerpt: f.evidence.excerpt ?? null,
-          contentHash: page?.contentHash ?? null,
-          storagePath: page?.storagePath ?? null,
-          capturedAt: page?.capturedAt ?? new Date(),
-          metadata: {
-            investigationId: inv.id,
-            snapshotId: f.evidence.snapshotId ?? null,
-            auditor: AUDIT_METHOD_VERSION,
-            ...(f.evidence.measurement ? { measurement: f.evidence.measurement } : {}),
-          },
-        })
-        .returning({ id: evidence.id })
-      if (!ev) throw new Error('evidence insert returned no row')
-      await tx.insert(findingRows).values({
-        investigationId: inv.id,
-        category: f.category,
-        code: f.code,
-        severity: f.severity,
-        isObjective: f.isObjective,
-        title: f.title,
-        detail: f.detail,
-        affectedUrl: f.affectedUrl,
-        evidenceId: ev.id,
-        confidence: f.confidence,
-      })
-    }
-  })
+  await saveFindings(db, inv, findings, byId)
 
   const bySeverity: Record<string, number> = {}
   const byCategory: Record<string, number> = {}

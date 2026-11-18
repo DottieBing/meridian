@@ -4,7 +4,7 @@ import {
 } from '@meridian/db'
 import type { Boss } from '@meridian/queue'
 import {
-  QUEUES, bulkContactScanRequest, investigationListQuery, uuidParam,
+  QUEUES, bulkContactScanRequest, investigationListQuery, uuidParam, contactScanRequest,
 } from '@meridian/shared'
 import type { FastifyPluginAsync } from 'fastify'
 
@@ -14,6 +14,8 @@ export const investigationRoutes =
     app.post('/api/v1/businesses/:id/contact-scan', async (req, reply) => {
       const p = uuidParam.safeParse(req.params)
       if (!p.success) return reply.code(400).send({ error: 'Invalid id' })
+      const body = contactScanRequest.safeParse(req.body ?? {})
+      const thenAudit = body.success ? body.data.thenAudit : false
 
       const [site] = await db
         .select()
@@ -41,7 +43,7 @@ export const investigationRoutes =
       const investigationId = await createContactScan(db, {
         workspaceId: site.workspaceId, businessId: site.businessId, websiteId: site.id,
       })
-      const jobId = await boss.send(QUEUES.contactScan, { investigationId })
+      const jobId = await boss.send(QUEUES.contactScan, { investigationId, thenAudit })
       if (!jobId) {
         await failScan(db, investigationId, 'The queue did not create a job')
         return reply.code(500).send({ error: 'Job was not created', investigationId })
@@ -76,7 +78,7 @@ export const investigationRoutes =
       const ids: string[] = []
       for (const r of rows) {
         const investigationId = await createContactScan(db, r)
-        const jobId = await boss.send(QUEUES.contactScan, { investigationId })
+        const jobId = await boss.send(QUEUES.contactScan, { investigationId, thenAudit: f.thenAudit })
         if (!jobId) {
           await failScan(db, investigationId, 'The queue did not create a job')
           continue

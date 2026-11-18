@@ -20,8 +20,16 @@ export const businessListQuery = z.object({
   hasWebsite: flag.optional(),
   hasEmail: flag.optional(),
   hasPhone: flag.optional(),
+  contactable: flag.optional(),
+  audited: flag.optional(),
+  minSeverity: z.enum(['low', 'medium', 'high', 'critical']).optional(),
+  sort: z.enum(['recent', 'issues']).default('recent'),
   ...paging,
 })
+
+export const businessExportQuery = businessListQuery.omit({ limit: true, offset: true })
+
+export const contactScanRequest = z.object({ thenAudit: z.boolean().default(false) })
 
 export const investigationListQuery = z.object({
   kind: z.enum(['contact_scan', 'website_audit', 'tech_detection', 'competitor_scan']).optional(),
@@ -35,11 +43,12 @@ export const bulkContactScanRequest = z.object({
   industry: z.string().max(60).optional(),
   city: z.string().max(100).optional(),
   rescanAfterDays: z.number().int().min(1).max(365).default(30),
+  thenAudit: z.boolean().default(false),
 })
 
 export const bulkWebsiteAuditRequest = z.object({
   limit: z.number().int().min(1).max(500).default(25),
   industry: z.string().max(60).optional(),
   city: z.string().max(100).optional(),
-  auditAfterDays: z.number().int().min(1).max(365).default(30),
+  auditAfterDays: z.number().int().min(0).max(365).default(30),
 })

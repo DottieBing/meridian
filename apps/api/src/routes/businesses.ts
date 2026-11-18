@@ -2,8 +2,10 @@ import {
   and, businessLocations, businessSources, businesses, contactPoints, desc, eq, evidence, ilike,
   sourceRecords, sql, websites, type Db,
 } from '@meridian/db'
-import { businessListQuery, uuidParam } from '@meridian/shared'
+import { businessExportQuery, businessListQuery, uuidParam } from '@meridian/shared'
 import type { FastifyPluginAsync } from 'fastify'
+
+type Filters = ReturnType<typeof businessExportQuery.parse>
 
 /** "has / has no" filter as an EXISTS subquery. Only fixed strings go into sql.raw. */
 const has = (table: string, extra: string, want: boolean | undefined) =>
@@ -12,6 +14,48 @@ const has = (table: string, extra: string, want: boolean | undefined) =>
     : sql.raw(
         `${want ? '' : 'not '}exists (select 1 from ${table} x where x.business_id = "businesses"."id"${extra})`,
       )
+
+const SEVERITY_SETS: Record<'low' | 'medium' | 'high' | 'critical', string> = {
+  low: `'low','medium','high','critical'`,
+  medium: `'medium','high','critical'`,
+  high: `'high','critical'`,
+  critical: `'critical'`,
+}
+
+const LATEST_AUDIT = sql`(select i.id from investigations i where i.business_id = "businesses"."id" and i.kind = 'website_audit' and i.status = 'completed' order by i.created_at desc limit 1)`
+
+// A sorting aid: critical 8, high 5, medium 3, low 1, info 0. It is not a quality score.
+const ISSUE_WEIGHT = sql`(select coalesce(sum(case f.severity when 'critical' then 8 when 'high' then 5 when 'medium' then 3 when 'low' then 1 else 0 end), 0)::int from findings f where f.investigation_id = ${LATEST_AUDIT})`
+
+const CONTACTABLE = `exists (select 1 from contact_points c where c.business_id = "businesses"."id" and c.type = 'email' and c.stale_at is null and coalesce(c.role, 'unknown') not in ('privacy_legal', 'no_reply', 'technical'))`
+
+function buildWhere(f: Filters) {
+  return and(
+    f.q ? ilike(businesses.name, `%${f.q}%`) : undefined,
+    f.industry ? eq(businesses.industry, f.industry) : undefined,
+    f.niche ? eq(businesses.niche, f.niche) : undefined,
+    f.countryCode ? eq(businesses.countryCode, f.countryCode.toUpperCase()) : undefined,
+    f.city ? sql`lower(${businesses.city}) = lower(${f.city})` : undefined,
+    has('websites', '', f.hasWebsite),
+    has('contact_points', " and x.type = 'email'", f.hasEmail),
+    has('contact_points', " and x.type = 'phone'", f.hasPhone),
+    f.contactable === undefined ? undefined : sql.raw(`${f.contactable ? '' : 'not '}${CONTACTABLE}`),
+    f.audited === undefined ? undefined : f.audited ? sql`${LATEST_AUDIT} is not null` : sql`${LATEST_AUDIT} is null`,
+    f.minSeverity
+      ? sql`exists (select 1 from findings f where f.investigation_id = ${LATEST_AUDIT} and f.severity in (${sql.raw(SEVERITY_SETS[f.minSeverity])}))`
+      : undefined,
+  )
+}
+
+const orderFor = (sort: 'recent' | 'issues') =>
+  sort === 'issues' ? [sql`${ISSUE_WEIGHT} desc`, businesses.name] : [desc(businesses.lastSeenAt), businesses.name]
+
+function cell(v: unknown, phone = false): string {
+  let s = v === null || v === undefined ? '' : String(v)
+  // Spreadsheet formula injection guard. Phone numbers that start with + are safe and kept as they are.
+  if (/^[=+\-@\t\r]/.test(s) && !(phone && /^\+[\d ]+$/.test(s))) s = `'${s}`
+  return /[",\r\n]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s
+}
 
 export const businessRoutes =
   (db: Db): FastifyPluginAsync =>
@@ -22,16 +66,7 @@ export const businessRoutes =
         return reply.code(400).send({ error: 'Invalid query', issues: parsed.error.issues })
       }
       const f = parsed.data
-      const where = and(
-        f.q ? ilike(businesses.name, `%${f.q}%`) : undefined,
-        f.industry ? eq(businesses.industry, f.industry) : undefined,
-        f.niche ? eq(businesses.niche, f.niche) : undefined,
-        f.countryCode ? eq(businesses.countryCode, f.countryCode.toUpperCase()) : undefined,
-        f.city ? sql`lower(${businesses.city}) = lower(${f.city})` : undefined,
-        has('websites', '', f.hasWebsite),
-        has('contact_points', " and x.type = 'email'", f.hasEmail),
-        has('contact_points', " and x.type = 'phone'", f.hasPhone),
-      )
+      const where = buildWhere(f)
 
       const rows = await db
         .select({
@@ -45,22 +80,73 @@ export const businessRoutes =
           firstSeenAt: businesses.firstSeenAt,
           lastSeenAt: businesses.lastSeenAt,
           website: sql<string | null>`(select w.domain from websites w where w.business_id = "businesses"."id" order by w.is_primary desc, w.created_at asc limit 1)`,
-          emailCount: sql<number>`(select count(*)::int from contact_points c where c.business_id = "businesses"."id" and c.type = 'email')`,
-          phoneCount: sql<number>`(select count(*)::int from contact_points c where c.business_id = "businesses"."id" and c.type = 'phone')`,
+          emailCount: sql<number>`(select count(*)::int from contact_points c where c.business_id = "businesses"."id" and c.type = 'email' and c.stale_at is null)`,
+          phoneCount: sql<number>`(select count(*)::int from contact_points c where c.business_id = "businesses"."id" and c.type = 'phone' and c.stale_at is null)`,
           locationCount: sql<number>`(select count(*)::int from business_locations l where l.business_id = "businesses"."id")`,
+          contactable: sql<boolean>`${sql.raw(CONTACTABLE)}`,
+          auditId: sql<string | null>`${LATEST_AUDIT}`,
+          auditOutcome: sql<string | null>`(select i.summary->>'outcome' from investigations i where i.id = ${LATEST_AUDIT})`,
+          issueWeight: sql<number>`${ISSUE_WEIGHT}`,
+          issueCount: sql<number>`(select count(*)::int from findings f where f.investigation_id = ${LATEST_AUDIT} and f.severity <> 'info')`,
+          signals: sql<string[]>`array(select f.code from findings f where f.investigation_id = ${LATEST_AUDIT} and f.severity in ('medium','high','critical') order by case f.severity when 'critical' then 3 when 'high' then 2 else 1 end desc, f.code limit 3)`,
         })
         .from(businesses)
         .where(where)
-        .orderBy(desc(businesses.lastSeenAt), businesses.name)
+        .orderBy(...orderFor(f.sort))
         .limit(f.limit)
         .offset(f.offset)
 
-      const [t] = await db
-        .select({ total: sql<number>`count(*)::int` })
-        .from(businesses)
-        .where(where)
+      const [t] = await db.select({ total: sql<number>`count(*)::int` }).from(businesses).where(where)
 
-      return { data: rows, page: { limit: f.limit, offset: f.offset, total: t?.total ?? 0 } }
+      return {
+        data: rows.map(({ auditId, auditOutcome, issueWeight, issueCount, signals, ...rest }) => ({
+          ...rest,
+          audit: auditId ? { outcome: auditOutcome, issueWeight, issueCount, signals } : null,
+        })),
+        page: { limit: f.limit, offset: f.offset, total: t?.total ?? 0 },
+      }
+    })
+
+    app.get('/api/v1/businesses/export.csv', async (req, reply) => {
+      const parsed = businessExportQuery.safeParse(req.query)
+      if (!parsed.success) {
+        return reply.code(400).send({ error: 'Invalid query', issues: parsed.error.issues })
+      }
+      const f = parsed.data
+
+      const rows = await db
+        .select({
+          id: businesses.id,
+          name: businesses.name,
+          industry: businesses.industry,
+          niche: businesses.niche,
+          city: businesses.city,
+          website: sql<string | null>`(select w.url from websites w where w.business_id = "businesses"."id" order by w.is_primary desc, w.created_at asc limit 1)`,
+          email: sql<string | null>`(select c.value from contact_points c where c.business_id = "businesses"."id" and c.type = 'email' and c.stale_at is null and coalesce(c.role, 'unknown') not in ('privacy_legal', 'no_reply', 'technical') order by c.confidence desc, c.first_seen_at asc limit 1)`,
+          emailRole: sql<string | null>`(select c.role from contact_points c where c.business_id = "businesses"."id" and c.type = 'email' and c.stale_at is null and coalesce(c.role, 'unknown') not in ('privacy_legal', 'no_reply', 'technical') order by c.confidence desc, c.first_seen_at asc limit 1)`,
+          phone: sql<string | null>`(select c.value from contact_points c where c.business_id = "businesses"."id" and c.type = 'phone' and c.stale_at is null order by c.confidence desc, c.first_seen_at asc limit 1)`,
+          auditOutcome: sql<string | null>`(select i.summary->>'outcome' from investigations i where i.id = ${LATEST_AUDIT})`,
+          issueWeight: sql<number>`${ISSUE_WEIGHT}`,
+          issues: sql<string[]>`array(select f.title from findings f where f.investigation_id = ${LATEST_AUDIT} and f.severity in ('medium','high','critical') order by case f.severity when 'critical' then 3 when 'high' then 2 else 1 end desc, f.code limit 3)`,
+        })
+        .from(businesses)
+        .where(buildWhere(f))
+        .orderBy(...orderFor(f.sort))
+        .limit(5000)
+
+      const header = ['lead_id', 'name', 'industry', 'niche', 'city', 'website', 'email', 'email_type', 'phone', 'audit_status', 'issue_weight', 'top_issues']
+      const lines = rows.map((r) =>
+        [
+          cell(r.id), cell(r.name), cell(r.industry), cell(r.niche), cell(r.city), cell(r.website),
+          cell(r.email), cell(r.emailRole), cell(r.phone, true), cell(r.auditOutcome), cell(r.auditOutcome ? r.issueWeight : ''),
+          cell(r.issues.join(' | ')),
+        ].join(','),
+      )
+      const stamp = new Date().toISOString().slice(0, 10)
+      return reply
+        .header('Content-Type', 'text/csv; charset=utf-8')
+        .header('Content-Disposition', `attachment; filename="meridian-leads-${stamp}.csv"`)
+        .send(`\uFEFF${[header.join(','), ...lines].join('\r\n')}\r\n`)
     })
 
     app.get('/api/v1/businesses/:id', async (req, reply) => {

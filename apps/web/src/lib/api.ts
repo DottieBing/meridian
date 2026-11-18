@@ -28,16 +28,38 @@ export async function fetchWorkspaces(): Promise<WorkspaceDto[]> {
   return (await getJson<{ data: WorkspaceDto[] }>('/api/v1/workspaces')).data
 }
 
-export function fetchBusinesses(f: BusinessFilters): Promise<Paged<BusinessListItem>> {
+function businessQuery(f: BusinessFilters, paging: boolean): URLSearchParams {
   const p = new URLSearchParams()
   if (f.q) p.set('q', f.q)
   if (f.industry) p.set('industry', f.industry)
   if (f.hasWebsite !== undefined) p.set('hasWebsite', String(f.hasWebsite))
   if (f.hasEmail !== undefined) p.set('hasEmail', String(f.hasEmail))
   if (f.hasPhone !== undefined) p.set('hasPhone', String(f.hasPhone))
-  p.set('limit', String(f.limit))
-  p.set('offset', String(f.offset))
-  return getJson<Paged<BusinessListItem>>(`/api/v1/businesses?${p.toString()}`)
+  if (f.contactable !== undefined) p.set('contactable', String(f.contactable))
+  if (f.audited !== undefined) p.set('audited', String(f.audited))
+  if (f.minSeverity) p.set('minSeverity', f.minSeverity)
+  if (f.sort) p.set('sort', f.sort)
+  if (paging) {
+    p.set('limit', String(f.limit))
+    p.set('offset', String(f.offset))
+  }
+  return p
+}
+
+export function fetchBusinesses(f: BusinessFilters): Promise<Paged<BusinessListItem>> {
+  return getJson<Paged<BusinessListItem>>(`/api/v1/businesses?${businessQuery(f, true).toString()}`)
+}
+
+export const businessExportUrl = (f: BusinessFilters): string =>
+  `/api/v1/businesses/export.csv?${businessQuery(f, false).toString()}`
+
+export async function startBulkAnalyse(industry?: string): Promise<{ queued: number }> {
+  const res = await getJson<{ data: { queued: number } }>('/api/v1/contact-scans', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ limit: 25, thenAudit: true, ...(industry ? { industry } : {}) }),
+  })
+  return res.data
 }
 
 export async function fetchBusiness(id: string): Promise<BusinessDetail> {
@@ -56,9 +78,13 @@ async function fetchRuns(businessId: string, kind: string, limit: number): Promi
 export const fetchScans = (businessId: string) => fetchRuns(businessId, 'contact_scan', 10)
 export const fetchAuditRuns = (businessId: string) => fetchRuns(businessId, 'website_audit', 5)
 
-export async function startContactScan(businessId: string): Promise<{ investigationId: string }> {
+export async function startContactScan(businessId: string, thenAudit = true): Promise<{ investigationId: string }> {
   return (
-    await getJson<{ data: { investigationId: string } }>(`/api/v1/businesses/${businessId}/contact-scan`, postJson)
+    await getJson<{ data: { investigationId: string } }>(`/api/v1/businesses/${businessId}/contact-scan`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ thenAudit }),
+    })
   ).data
 }
 
