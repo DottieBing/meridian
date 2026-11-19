@@ -1,4 +1,4 @@
-import type { FindingDto, TechnologyDto } from '@meridian/shared/api-types'
+import type { FindingDto, TechnologyDto, AuditScores } from '@meridian/shared/api-types'
 import { useQueryClient } from '@tanstack/react-query'
 import { Radar } from 'lucide-react'
 import { useEffect, useRef } from 'react'
@@ -47,7 +47,42 @@ function shortUrl(u: string | null): string {
   }
 }
 
-function FindingRow({ f }: { f: FindingDto }) {
+const BAND: Record<AuditScores['band'], { label: string; tone: Tone }> = {
+  good: { label: 'Good', tone: 'lime' },
+  fair: { label: 'Fair', tone: 'neutral' },
+  weak: { label: 'Weak', tone: 'warn' },
+  poor: { label: 'Poor', tone: 'danger' },
+}
+
+function ScoresPanel({ scores }: { scores: AuditScores }) {
+  return (
+    <section className="rounded-xl border border-border bg-surface p-4">
+      <div className="flex flex-wrap items-center gap-3">
+        <span className="font-mono text-3xl">{scores.health}</span>
+        <Badge tone={BAND[scores.band].tone}>{BAND[scores.band].label}</Badge>
+        <span className="text-xs text-muted">Website health, 0 to 100</span>
+      </div>
+      <div className="mt-3 grid grid-cols-2 gap-x-6 gap-y-1.5 text-sm sm:grid-cols-3">
+        {Object.entries(scores.categories).map(([cat, c]) => (
+          <div key={cat} className="flex items-baseline justify-between gap-2">
+            <span className="text-muted">{CATEGORY[cat] ?? cat}</span>
+            <span className="font-mono" title={`${c.findings} finding(s), ${c.points} points deducted`}>
+              {c.score}
+            </span>
+          </div>
+        ))}
+      </div>
+      <p className="mt-3 text-xs text-muted">
+        Each category starts at 100. A finding deducts points by severity (critical 50, high 30, medium 15, low 6,
+        info 1), and half as much when it is a judgement rather than an observed fact. Health is the weighted
+        average of the categories: security, performance and SEO count 20 each, accessibility and technical 15,
+        mobile 10. Method {scores.method}.
+      </p>
+    </section>
+  )
+}
+
+function FindingRow({ f, points }: { f: FindingDto; points: number | null }) {
   const sev = SEVERITY[f.severity]
   return (
     <div className="border-b border-border px-4 py-3 last:border-b-0">
@@ -65,6 +100,7 @@ function FindingRow({ f }: { f: FindingDto }) {
           }
         >
           {f.isObjective ? 'Observed' : 'Judgement'}
+          {points ? <Badge title="Points deducted from this category's score">−{points}</Badge> : null}
         </Badge>
       </div>
       {f.detail && <p className="mt-2 text-sm text-muted">{f.detail}</p>}
@@ -158,6 +194,8 @@ export function AuditPanel({
   const data = audit.data
   const summary = data?.investigation.summary
   const ok = summary?.outcome === 'ok' || summary?.outcome === 'tls_error'
+  const pts = new Map<string, number>()
+  for (const p of summary?.scores?.points ?? []) pts.set(p.code, (pts.get(p.code) ?? 0) + p.points)
 
   const deepLink = (() => {
     try {
@@ -241,10 +279,12 @@ export function AuditPanel({
             </div>
           </div>
 
+          {summary.scores && <ScoresPanel scores={summary.scores} />}v
+
           {data.findings.length > 0 && (
             <div className="rounded-xl border border-border bg-surface">
               {data.findings.map((f) => (
-                <FindingRow key={f.id} f={f} />
+                <FindingRow key={f.id} f={f} points={pts.get(f.code) ?? null} />
               ))}
             </div>
           )}

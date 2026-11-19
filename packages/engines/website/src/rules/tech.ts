@@ -83,7 +83,7 @@ const angularJs: Rule = {
   id: 'tech.angularjs.unmaintained',
   run(ctx) {
     const t = find(ctx, 'angularjs')
-    if (!t) return []
+    if (!t || t.via !== 'src') return []
     return [
       {
         code: 'tech.angularjs.unmaintained',

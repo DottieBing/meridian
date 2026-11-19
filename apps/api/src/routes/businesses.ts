@@ -27,6 +27,8 @@ const LATEST_AUDIT = sql`(select i.id from investigations i where i.business_id 
 // A sorting aid: critical 8, high 5, medium 3, low 1, info 0. It is not a quality score.
 const ISSUE_WEIGHT = sql`(select coalesce(sum(case f.severity when 'critical' then 8 when 'high' then 5 when 'medium' then 3 when 'low' then 1 else 0 end), 0)::int from findings f where f.investigation_id = ${LATEST_AUDIT})`
 
+const HEALTH = sql`(select (i.summary->'scores'->>'health')::int from investigations i where i.id = ${LATEST_AUDIT})`
+
 const PLATFORM = sql`(select t.name || coalesce(' ' || t.version, '') from website_technologies t where t.investigation_id = ${LATEST_AUDIT} and t.category in ('website_builder','cms','ecommerce','framework') order by case t.category when 'website_builder' then 1 when 'cms' then 2 when 'ecommerce' then 3 else 4 end, t.confidence desc limit 1)`
 
 const CONTACTABLE = `exists (select 1 from contact_points c where c.business_id = "businesses"."id" and c.type = 'email' and c.stale_at is null and coalesce(c.role, 'unknown') not in ('privacy_legal', 'no_reply', 'technical'))`
@@ -52,8 +54,12 @@ function buildWhere(f: Filters) {
   )
 }
 
-const orderFor = (sort: 'recent' | 'issues') =>
-  sort === 'issues' ? [sql`${ISSUE_WEIGHT} desc`, businesses.name] : [desc(businesses.lastSeenAt), businesses.name]
+const orderFor = (sort: 'recent' | 'issues' | 'health') =>
+  sort === 'issues'
+    ? [sql`${ISSUE_WEIGHT} desc`, businesses.name]
+    : sort === 'health'
+      ? [sql`${HEALTH} asc nulls last`, businesses.name]
+      : [desc(businesses.lastSeenAt), businesses.name]
 
 function cell(v: unknown, phone = false): string {
   let s = v === null || v === undefined ? '' : String(v)
@@ -94,6 +100,7 @@ export const businessRoutes =
           auditOutcome: sql<string | null>`(select i.summary->>'outcome' from investigations i where i.id = ${LATEST_AUDIT})`,
           issueWeight: sql<number>`${ISSUE_WEIGHT}`,
           issueCount: sql<number>`(select count(*)::int from findings f where f.investigation_id = ${LATEST_AUDIT} and f.severity <> 'info')`,
+          health: sql<number | null>`${HEALTH}`,
           signals: sql<string[]>`array(select f.code from findings f where f.investigation_id = ${LATEST_AUDIT} and f.severity in ('medium','high','critical') order by case f.severity when 'critical' then 3 when 'high' then 2 else 1 end desc, f.code limit 3)`,
         })
         .from(businesses)
@@ -105,9 +112,9 @@ export const businessRoutes =
       const [t] = await db.select({ total: sql<number>`count(*)::int` }).from(businesses).where(where)
 
       return {
-        data: rows.map(({ auditId, auditOutcome, issueWeight, issueCount, signals, ...rest }) => ({
+        data: rows.map(({ auditId, auditOutcome, issueWeight, issueCount, health, signals, ...rest }) => ({
           ...rest,
-          audit: auditId ? { outcome: auditOutcome, issueWeight, issueCount, signals } : null,
+          audit: auditId ? { outcome: auditOutcome, issueWeight, issueCount, health, signals } : null,
         })),
         page: { limit: f.limit, offset: f.offset, total: t?.total ?? 0 },
       }
@@ -133,6 +140,7 @@ export const businessRoutes =
           phone: sql<string | null>`(select c.value from contact_points c where c.business_id = "businesses"."id" and c.type = 'phone' and c.stale_at is null order by c.confidence desc, c.first_seen_at asc limit 1)`,
           auditOutcome: sql<string | null>`(select i.summary->>'outcome' from investigations i where i.id = ${LATEST_AUDIT})`,
           issueWeight: sql<number>`${ISSUE_WEIGHT}`,
+          health: sql<number | null>`${HEALTH}`,
           issues: sql<string[]>`array(select f.title from findings f where f.investigation_id = ${LATEST_AUDIT} and f.severity in ('medium','high','critical') order by case f.severity when 'critical' then 3 when 'high' then 2 else 1 end desc, f.code limit 3)`,
           platform: sql<string | null>`${PLATFORM}`,
         })
@@ -141,12 +149,12 @@ export const businessRoutes =
         .orderBy(...orderFor(f.sort))
         .limit(5000)
 
-      const header = ['lead_id', 'name', 'industry', 'niche', 'city', 'website', 'platform', 'email', 'email_type', 'phone', 'audit_status', 'issue_weight', 'top_issues']
+      const header = ['lead_id', 'name', 'industry', 'niche', 'city', 'website', 'platform', 'email', 'email_type', 'phone', 'audit_status', 'issue_weight', 'health', 'top_issues']
       const lines = rows.map((r) =>
         [
           cell(r.id), cell(r.name), cell(r.industry), cell(r.niche), cell(r.city), cell(r.website), cell(r.platform),
           cell(r.email), cell(r.emailRole), cell(r.phone, true), cell(r.auditOutcome), cell(r.auditOutcome ? r.issueWeight : ''),
-          cell(r.issues.join(' | ')),
+          cell(r.health), cell(r.issues.join(' | ')),
         ].join(','),
       )
       const stamp = new Date().toISOString().slice(0, 10)

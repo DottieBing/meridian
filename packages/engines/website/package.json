@@ -10,6 +10,7 @@
   },
   "scripts": {
     "probe": "tsx --env-file=../../../.env src/probe.ts",
+    "rescore": "tsx --env-file=../../../.env src/rescore.ts",
     "typecheck": "tsc --noEmit",
     "test": "node --import tsx --test src/rules.test.ts"
   },

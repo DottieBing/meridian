@@ -5,6 +5,7 @@ import { runRules } from './audit'
 import { RULES } from './rules'
 import type { AuditContext, AuditFiles, AuditPage } from './types'
 import { detectTechnologies } from './tech/detect'
+import { scoreFindings } from './scores'
 
 const GOOD_HEADERS = {
   'strict-transport-security': 'max-age=31536000',
@@ -163,6 +164,21 @@ test('current libraries with a consent tool trigger no technology findings', () 
 <script async src="https://www.googletagmanager.com/gtag/js?id=G-ABC1234567"></script></head><body></body></html>`
   const codes = codesOf(ctx(page(html, { headers: { ...GOOD_HEADERS, 'x-powered-by': 'PHP/8.3.1' } })))
   assert.deepEqual([...codes].filter((c) => c.startsWith('tech.')), [])
+})
+
+test('scores are documented arithmetic on the findings', () => {
+  assert.equal(scoreFindings([]).health, 100)
+  const s = scoreFindings([
+    { code: 'a', category: 'security', severity: 'high', isObjective: true }, // 30
+    { code: 'b', category: 'seo', severity: 'medium', isObjective: false }, // 7.5
+    { code: 'c', category: 'seo', severity: 'low', isObjective: true }, // 6
+  ])
+  assert.equal(s.categories['security']?.score, 70)
+  assert.equal(s.categories['seo']?.points, 13.5)
+  assert.equal(s.categories['seo']?.score, 87)
+  // (70*20 + 87*20 + 100*20 + 100*15 + 100*15 + 100*10) / 100 = 91.4
+  assert.equal(s.health, 91)
+  assert.equal(s.band, 'good')
 })
 
 test('every rule in the engine was exercised by a fixture', () => {

@@ -72,7 +72,8 @@ export function Leads() {
   const contactable = params.get('contact') === '1'
   const audited = params.get('audited') === '1'
   const minSeverity = SEVERITIES.find((s) => s === params.get('sev'))
-  const sort = params.get('sort') === 'issues' ? 'issues' : 'recent'
+  const sortParam = params.get('sort')
+  const sort = sortParam === 'issues' || sortParam === 'health' ? sortParam : 'recent'
   const tech = params.get('tech') ?? ''
   const page = Math.max(0, Number(params.get('page') ?? '0') || 0)
 
@@ -204,12 +205,13 @@ export function Leads() {
         </select>
         <select
           value={sort}
-          onChange={(e) => setParam('sort', e.target.value === 'issues' ? 'issues' : null)}
+          onChange={(e) => setParam('sort', e.target.value === 'recent' ? null : e.target.value)}
           aria-label="Sort order"
           className="rounded-md border border-border bg-surface px-2.5 py-1.5 text-sm outline-none focus:border-line/60"
         >
           <option value="recent">Recently seen</option>
           <option value="issues">Most issues first</option>
+          <option value="health">Weakest sites first</option>
         </select>
         <select
           value={tech}
@@ -257,9 +259,9 @@ export function Leads() {
               <th className="px-4 py-2.5 font-normal">ISSUES FOUND</th>
               <th
                 className="px-4 py-2.5 text-right font-normal"
-                title="Sum of severity weights: critical 8, high 5, medium 3, low 1. A sorting aid, not a quality score."
+                title="Website health, 0 to 100, calculated from the audit findings. The breakdown is on the business's Website Audit tab."
               >
-                WEIGHT
+                HEALTH
               </th>
               <th className="px-4 py-2.5 font-normal">CONTACT</th>
               <th className="px-4 py-2.5 text-right font-normal">LAST SEEN</th>
@@ -311,7 +313,7 @@ export function Leads() {
                 <td className="px-4 py-2.5">
                   <Issues a={b.audit} />
                 </td>
-                <td className="px-4 py-2.5 text-right font-mono">{b.audit && !STATUS_NOTE[b.audit.outcome ?? ''] ? b.audit.issueWeight : dash}</td>
+                <td className="px-4 py-2.5 text-right font-mono">{b.audit?.health ?? dash}</td>
                 <td className="px-4 py-2.5">
                   {b.contactable ? (
                     <Badge tone="lime">Email ready</Badge>

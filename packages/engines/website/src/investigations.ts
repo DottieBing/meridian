@@ -14,6 +14,7 @@ import { AUDIT_METHOD_VERSION, runRules } from './audit'
 import { buildContext, loadPages, pickHome } from './context'
 import type { AuditFiles, AuditPage, FindingDraft, Log, DetectedTech } from './types'
 import { TECH_METHOD_VERSION } from './tech/detect'
+import { scoreFindings } from './scores'
 
 const FRESH_MS = 7 * 24 * 3600 * 1000
 
@@ -316,6 +317,7 @@ export async function runWebsiteAudit(db: Db, id: string, log: Log): Promise<Rec
 
   const { findings, errors } = runRules(context)
   const byId = new Map(context.pages.map((p) => [p.snapshotId, p]))
+  await saveFindings(db, inv, findings, byId)
   await saveTechnologies(db, inv, site.id, context.tech, byId)
 
   const bySeverity: Record<string, number> = {}
@@ -332,6 +334,7 @@ export async function runWebsiteAudit(db: Db, id: string, log: Log): Promise<Rec
     pagesAudited: context.pages.length,
     fetchedFresh,
     findings: findings.length,
+    scores: scoreFindings(findings),
     technologies: context.tech.length,
     bySeverity,
     byCategory,

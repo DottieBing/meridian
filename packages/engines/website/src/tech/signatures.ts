@@ -197,7 +197,7 @@ export const SIGS: Sig[] = [
       /ajax\/libs\/angular\.js\/(\d+\.\d+\.\d+)\//i,
       /angularjs\/(\d+\.\d+\.\d+)\/angular/i,
     ],
-    html: [/\bng-app\b/i],
+    html: [/<[a-z][^>]*\sdata-ng-app\b|<[a-z][^>]*\sng-app\b/i],
   },
   { slug: 'angular', name: 'Angular', category: 'framework', html: [/\bng-version="(\d+(?:\.\d+)*)"/] },
   {

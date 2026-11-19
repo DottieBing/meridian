@@ -31,7 +31,7 @@ export type BusinessFilters = {
   contactable?: boolean
   audited?: boolean
   minSeverity?: 'low' | 'medium' | 'high' | 'critical'
-  sort?: 'recent' | 'issues'
+  sort?: 'recent' | 'issues' | 'health'
   limit: number
   offset: number
   tech?: string
@@ -42,6 +42,7 @@ export type BusinessAuditSummary = {
   issueWeight: number
   issueCount: number
   signals: string[]
+  health: number | null
 }
 
 export type BusinessListItem = {
@@ -60,6 +61,7 @@ export type BusinessListItem = {
   locationCount: number
   contactable: boolean
   audit: BusinessAuditSummary | null
+  scores?: AuditScores
   platform: string | null
 }
 
@@ -190,6 +192,7 @@ export type AuditSummary = {
   bySeverity?: Record<string, number>
   truncatedPages?: number
   durationMs?: number
+  scores?: AuditScores
 }
 
 export type AuditDto = {
@@ -216,6 +219,14 @@ export type TechnologyDto = {
   via: string
   excerpt: string | null
   sourceUrl: string | null
+}
+
+export type AuditScores = {
+  method: string
+  health: number
+  band: 'good' | 'fair' | 'weak' | 'poor'
+  categories: Record<string, { score: number; points: number; findings: number }>
+  points: { code: string; category: string; points: number }[]
 }
 
 export type TechOptionDto = { slug: string; name: string; category: string; sites: number }
