@@ -33,7 +33,7 @@ export const businessExportQuery = businessListQuery.omit({ limit: true, offset:
 export const contactScanRequest = z.object({ thenAudit: z.boolean().default(false) })
 
 export const investigationListQuery = z.object({
-  kind: z.enum(['contact_scan', 'website_audit', 'tech_detection', 'competitor_scan']).optional(),
+  kind: z.enum(['contact_scan', 'website_audit', 'tech_detection', 'competitor_scan', 'browser_audit']).optional(),
   status: z.enum(['queued', 'running', 'completed', 'failed', 'cancelled']).optional(),
   businessId: z.string().uuid().optional(),
   ...paging,
@@ -51,5 +51,14 @@ export const bulkWebsiteAuditRequest = z.object({
   limit: z.number().int().min(1).max(500).default(25),
   industry: z.string().max(60).optional(),
   city: z.string().max(100).optional(),
+  auditAfterDays: z.number().int().min(0).max(365).default(30),
+})
+
+export const bulkBrowserAuditRequest = z.object({
+  limit: z.number().int().min(1).max(50).default(10),
+  industry: z.string().max(60).optional(),
+  city: z.string().max(100).optional(),
+  maxHealth: z.number().int().min(0).max(100).default(84),
+  contactable: z.boolean().default(true),
   auditAfterDays: z.number().int().min(0).max(365).default(30),
 })

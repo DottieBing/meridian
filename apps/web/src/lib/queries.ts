@@ -12,6 +12,9 @@ import {
   startContactScan,
   startWebsiteAudit,
   fetchTechOptions,
+  fetchMobileAudit,
+  fetchMobileRuns,
+  startMobileAudit
 } from './api'
 
 export const isActiveScan = (s: InvestigationDto) => s.status === 'queued' || s.status === 'running'
@@ -96,4 +99,30 @@ export function useStartAudit(businessId: string) {
 
 export function useTechOptions() {
   return useQuery({ queryKey: ['tech-options'], queryFn: fetchTechOptions, staleTime: 60_000, retry: false })
+}
+
+export function useMobileAudit(businessId: string) {
+  return useQuery({
+    queryKey: ['mobile', businessId],
+    queryFn: () => fetchMobileAudit(businessId),
+    enabled: businessId.length > 0,
+    retry: false,
+  })
+}
+
+export function useMobileRuns(businessId: string) {
+  return useQuery({
+    queryKey: ['mobile-runs', businessId],
+    queryFn: () => fetchMobileRuns(businessId),
+    enabled: businessId.length > 0,
+    refetchInterval: (query) => (query.state.data?.some(isActiveScan) ? 2000 : false),
+  })
+}
+
+export function useStartMobileAudit(businessId: string) {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: () => startMobileAudit(businessId),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ['mobile-runs', businessId] }),
+  })
 }

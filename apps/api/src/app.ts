@@ -10,6 +10,7 @@ import { discoveryRoutes } from './routes/discovery'
 import { businessRoutes } from './routes/businesses'
 import { investigationRoutes } from './routes/investigations'
 import { auditRoutes } from './routes/audits'
+import { browserRoutes } from './routes/browser'
 
 export type AppDeps = {
   config: Config
@@ -43,6 +44,7 @@ export async function buildApp({ config, db, boss, checkDb }: AppDeps) {
   await app.register(businessRoutes(db))
   await app.register(investigationRoutes(db, boss))
   await app.register(auditRoutes(db, boss))
+  await app.register(browserRoutes(db, boss))
 
   return app
 }

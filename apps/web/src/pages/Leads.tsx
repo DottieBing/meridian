@@ -323,6 +323,12 @@ export function Leads() {
                     dash
                   )}
                   {b.phoneCount > 0 && <span className="ml-2 text-xs text-muted">{b.phoneCount} phone</span>}
+                  <div
+                    className="mt-0.5 text-xs text-muted"
+                    title="Reach: how many ways we can contact this business (0-100). Data: how much we know about it (0-100)."
+                  >
+                    Reach {b.scores.contactability} · Data {b.scores.completeness}
+                  </div>
                 </td>
                 <td className="whitespace-nowrap px-4 py-2.5 text-right text-xs text-muted">{fmtAgo(b.lastSeenAt)}</td>
               </tr>

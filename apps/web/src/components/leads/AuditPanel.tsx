@@ -47,7 +47,7 @@ function shortUrl(u: string | null): string {
   }
 }
 
-const BAND: Record<AuditScores['band'], { label: string; tone: Tone }> = {
+export const BAND: Record<AuditScores['band'], { label: string; tone: Tone }> = {
   good: { label: 'Good', tone: 'lime' },
   fair: { label: 'Fair', tone: 'neutral' },
   weak: { label: 'Weak', tone: 'warn' },
@@ -55,6 +55,7 @@ const BAND: Record<AuditScores['band'], { label: string; tone: Tone }> = {
 }
 
 function ScoresPanel({ scores }: { scores: AuditScores }) {
+  const deducted = Object.values(scores.categories).reduce((n, c) => n + c.weighted, 0)
   return (
     <section className="rounded-xl border border-border bg-surface p-4">
       <div className="flex flex-wrap items-center gap-3">
@@ -68,21 +69,23 @@ function ScoresPanel({ scores }: { scores: AuditScores }) {
             <span className="text-muted">{CATEGORY[cat] ?? cat}</span>
             <span className="font-mono" title={`${c.findings} finding(s), ${c.points} points deducted`}>
               {c.score}
+              <span className="ml-2 text-xs text-muted">−{c.weighted}</span>
             </span>
           </div>
         ))}
       </div>
+      <p className="mt-2 text-xs text-muted">Health = 100 minus the weighted deductions shown ({deducted.toFixed(1)}).</p>
       <p className="mt-3 text-xs text-muted">
-        Each category starts at 100. A finding deducts points by severity (critical 50, high 30, medium 15, low 6,
-        info 1), and half as much when it is a judgement rather than an observed fact. Health is the weighted
-        average of the categories: security, performance and SEO count 20 each, accessibility and technical 15,
-        mobile 10. Method {scores.method}.
+        Each category starts at 100 and loses points per finding: critical 40, high 20, medium 10, low 4, info 1, and
+        half as much when the finding is a judgement rather than an observed fact. Health starts at 100 and loses
+        every category's points, counted 1.2× for security, performance and SEO, 0.9× for accessibility and
+        technical, and 0.6× for mobile. Method {scores.method}.
       </p>
     </section>
   )
 }
 
-function FindingRow({ f, points }: { f: FindingDto; points: number | null }) {
+export function FindingRow({ f, points }: { f: FindingDto; points: number | null }) {
   const sev = SEVERITY[f.severity]
   return (
     <div className="border-b border-border px-4 py-3 last:border-b-0">

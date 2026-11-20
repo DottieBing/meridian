@@ -9,6 +9,7 @@ import type {
   PresetDto,
   WorkspaceDto,
   TechOptionDto,
+  MobileAuditDto,
 } from '@meridian/shared/api-types'
 
 async function getJson<T>(url: string, init?: RequestInit): Promise<T> {
@@ -102,4 +103,16 @@ export async function fetchAudit(businessId: string): Promise<AuditDto | null> {
 
 export async function fetchTechOptions(): Promise<TechOptionDto[]> {
   return (await getJson<{ data: TechOptionDto[] }>('/api/v1/technologies')).data
+}
+
+export const fetchMobileRuns = (businessId: string) => fetchRuns(businessId, 'browser_audit', 5)
+
+export async function startMobileAudit(businessId: string): Promise<{ investigationId: string }> {
+  return (
+    await getJson<{ data: { investigationId: string } }>(`/api/v1/businesses/${businessId}/browser-audit`, postJson)
+  ).data
+}
+
+export async function fetchMobileAudit(businessId: string): Promise<MobileAuditDto | null> {
+  return (await getJson<{ data: MobileAuditDto | null }>(`/api/v1/businesses/${businessId}/browser-audit`)).data
 }

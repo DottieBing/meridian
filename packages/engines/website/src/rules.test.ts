@@ -6,6 +6,10 @@ import { RULES } from './rules'
 import type { AuditContext, AuditFiles, AuditPage } from './types'
 import { detectTechnologies } from './tech/detect'
 import { scoreFindings } from './scores'
+import { completeness, contactability } from './lead-scores'
+import { isPrivateHost } from './browser/guards'
+import { BROWSER_RULES, runBrowserRules } from './browser/rules'
+import type { BrowserMeasurement } from './browser/measure'
 
 const GOOD_HEADERS = {
   'strict-transport-security': 'max-age=31536000',
@@ -169,16 +173,83 @@ test('current libraries with a consent tool trigger no technology findings', () 
 test('scores are documented arithmetic on the findings', () => {
   assert.equal(scoreFindings([]).health, 100)
   const s = scoreFindings([
-    { code: 'a', category: 'security', severity: 'high', isObjective: true }, // 30
-    { code: 'b', category: 'seo', severity: 'medium', isObjective: false }, // 7.5
-    { code: 'c', category: 'seo', severity: 'low', isObjective: true }, // 6
+    { code: 'a', category: 'security', severity: 'high', isObjective: true }, // 20
+    { code: 'b', category: 'seo', severity: 'medium', isObjective: false }, // 5
+    { code: 'c', category: 'seo', severity: 'low', isObjective: true }, // 4
   ])
-  assert.equal(s.categories['security']?.score, 70)
-  assert.equal(s.categories['seo']?.points, 13.5)
-  assert.equal(s.categories['seo']?.score, 87)
-  // (70*20 + 87*20 + 100*20 + 100*15 + 100*15 + 100*10) / 100 = 91.4
-  assert.equal(s.health, 91)
-  assert.equal(s.band, 'good')
+  assert.equal(s.categories['security']?.score, 80)
+  assert.equal(s.categories['security']?.weighted, 24)
+  assert.equal(s.categories['seo']?.points, 9)
+  assert.equal(s.categories['seo']?.score, 91)
+  // 100 - (20 * 1.2 + 9 * 1.2) = 65.2
+  assert.equal(s.health, 65)
+  assert.equal(s.band, 'weak')
+})
+
+test('lead scores are documented arithmetic', () => {
+  assert.equal(contactability([]), 0)
+  assert.equal(contactability(['email', 'phone']), 65)
+  assert.equal(contactability(['email', 'phone', 'contact_form', 'social', 'address']), 100)
+  assert.equal(contactability(['unknown']), 0)
+
+  const full = {
+    industry: true, niche: true, city: true, hasWebsite: true, auditOk: true,
+    auditPages: 5, techCount: 4, contactScanDone: true, hasContact: true,
+  }
+  assert.equal(completeness(full).score, 100)
+
+  const unaudited = completeness({ ...full, auditOk: false, auditPages: 0, techCount: 0 })
+  assert.equal(unaudited.score, 55) // 5+5+5+15+10+15 earned of 100
+  assert.ok(unaudited.missing.includes('Website audit'))
+
+  const noSite = completeness({ ...full, hasWebsite: false, auditOk: false, auditPages: 0, techCount: 0 })
+  assert.equal(noSite.score, 73) // 40 earned of the 55 points that apply
+})
+
+test('the browser never gets pointed at private addresses', () => {
+  for (const h of ['localhost', '127.0.0.1', '10.1.2.3', '192.168.1.5', '172.16.0.1', '172.31.255.255', '169.254.169.254', '[::1]', 'printer.local', '0.0.0.0']) {
+    assert.equal(isPrivateHost(h), true, h)
+  }
+  for (const h of ['example.com', '172.32.0.1', '8.8.8.8', 'www.adams.com.cy']) {
+    assert.equal(isPrivateHost(h), false, h)
+  }
+})
+
+const HEALTHY_MOBILE: BrowserMeasurement = {
+  url: 'https://example.cy/', finalUrl: 'https://example.cy/', status: 200, loaded: true, contentLoaded: true,
+  viewport: { width: 390, height: 664 }, layoutWidth: 390, lcpMs: 2000, cls: 0,
+  domContentLoadedMs: 800, loadMs: 1500, requests: 30, transferBytes: 1_200_000,
+  failedRequests: [], consoleErrors: [], pageErrors: [],
+  overflow: { pixels: 0, scrollable: true, offenders: [] },
+  textChars: 2000, screenshotPath: null, durationMs: 5000,
+}
+
+test('a healthy mobile measurement produces no browser findings', () => {
+  assert.deepEqual(runBrowserRules(HEALTHY_MOBILE, { screenshotRel: null }).findings, [])
+})
+
+test('browser rules fire on a broken mobile page and ignore third-party failures', () => {
+  const broken: BrowserMeasurement = {
+    ...HEALTHY_MOBILE,
+    cls: 0.3,
+    transferBytes: 12_000_000,
+    overflow: { pixels: 120, scrollable: true, offenders: [{ el: 'img.hero', right: 510, width: 500 }] },
+    layoutWidth: 980,
+    failedRequests: [
+      { url: 'https://example.cy/css/a.css', reason: 'HTTP 404' },
+      { url: 'https://www.google.com/recaptcha/x', reason: 'HTTP 401' },
+    ],
+    consoleErrors: ['Uncaught TypeError'],
+  }
+  const { findings, errors } = runBrowserRules(broken, { screenshotRel: 'screenshots/x.jpg' })
+  assert.deepEqual(errors, [])
+  const codes = findings.map((f) => f.code)
+  for (const id of BROWSER_RULES.map((r) => r.id)) assert.ok(codes.includes(id), `expected ${id}`)
+  assert.ok(findings.find((f) => f.code === 'mobile.resources.failed')?.title.startsWith('1 file'))
+  assert.equal(findings.find((f) => f.code === 'mobile.overflow.horizontal')?.evidence.kind, 'screenshot')
+  // An unscrollable page (hidden overflow) is not flagged
+  const hidden = { ...broken, overflow: { pixels: 120, scrollable: false, offenders: [] } }
+  assert.ok(!runBrowserRules(hidden, { screenshotRel: null }).findings.some((f) => f.code === 'mobile.overflow.horizontal'))
 })
 
 test('every rule in the engine was exercised by a fixture', () => {

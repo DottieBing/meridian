@@ -11,13 +11,15 @@
   "scripts": {
     "probe": "tsx --env-file=../../../.env src/probe.ts",
     "rescore": "tsx --env-file=../../../.env src/rescore.ts",
+    "browser-probe": "tsx --env-file=../../../.env src/browser/browser-probe.ts",
     "typecheck": "tsc --noEmit",
     "test": "node --import tsx --test src/rules.test.ts"
   },
   "dependencies": {
     "@meridian/crawl": "workspace:*",
     "@meridian/db": "workspace:*",
-    "cheerio": "^1.2.0"
+    "cheerio": "^1.2.0",
+    "playwright": "^1.65.1"
   },
   "devDependencies": {
     "@types/node": "^26.6.6",

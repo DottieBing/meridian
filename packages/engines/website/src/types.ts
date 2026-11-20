@@ -45,6 +45,7 @@ export type FindingEvidence = {
   sourceUrl?: string
   excerpt?: string
   measurement?: Record<string, unknown>
+  storagePath?: string
 }
 
 export type FindingDraft = {

@@ -61,8 +61,8 @@ export type BusinessListItem = {
   locationCount: number
   contactable: boolean
   audit: BusinessAuditSummary | null
-  scores?: AuditScores
   platform: string | null
+  scores: { contactability: number; completeness: number }
 }
 
 export type ContactType = 'email' | 'phone' | 'social' | 'contact_form' | 'address'
@@ -225,8 +225,47 @@ export type AuditScores = {
   method: string
   health: number
   band: 'good' | 'fair' | 'weak' | 'poor'
-  categories: Record<string, { score: number; points: number; findings: number }>
+  categories: Record<string, { score: number; points: number; findings: number; weighted: number }>
   points: { code: string; category: string; points: number }[]
+}
+
+export type MobileSummary = {
+  outcome?: string
+  error?: string | null
+  url?: string
+  finalUrl?: string
+  device?: string
+  screenshot?: string | null
+  durationMs?: number
+  partial?: boolean
+  measurements?: {
+    status: number | null
+    loaded: boolean
+    lcpMs: number | null
+    cls: number | null
+    loadMs: number | null
+    domContentLoadedMs: number | null
+    requests: number
+    transferBytes: number
+    layoutWidth: number
+    overflowPx: number
+    scrollable: boolean
+    contentLoaded?: boolean
+  }
+  calibration?: { lcpMs: number | null; loadMs: number | null } | null
+  scores?: AuditScores
+  bySeverity?: Record<string, number>
+}
+
+export type MobileAuditDto = {
+  investigation: {
+    id: string
+    status: string
+    createdAt: string
+    finishedAt: string | null
+    summary: MobileSummary | null
+  }
+  findings: FindingDto[]
 }
 
 export type TechOptionDto = { slug: string; name: string; category: string; sites: number }

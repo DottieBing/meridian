@@ -76,11 +76,12 @@ function tlsFinding(siteUrl: string, code: string): FindingDraft {
   }
 }
 
-async function saveFindings(
+export async function saveFindings(
   db: Db,
   inv: { id: string; workspaceId: string },
   drafts: FindingDraft[],
   byId: Map<string, AuditPage>,
+  auditor: string = AUDIT_METHOD_VERSION,
 ): Promise<void> {
   await db.transaction(async (tx) => {
     for (const f of drafts) {
@@ -94,12 +95,12 @@ async function saveFindings(
           method: f.evidence.method,
           excerpt: f.evidence.excerpt ?? null,
           contentHash: page?.contentHash ?? null,
-          storagePath: page?.storagePath ?? null,
+          storagePath: f.evidence.storagePath ?? page?.storagePath ?? null,
           capturedAt: page?.capturedAt ?? new Date(),
           metadata: {
             investigationId: inv.id,
             snapshotId: f.evidence.snapshotId ?? null,
-            auditor: AUDIT_METHOD_VERSION,
+            auditor,
             ...(f.evidence.measurement ? { measurement: f.evidence.measurement } : {}),
           },
         })

@@ -4,6 +4,7 @@ import {
 } from '@meridian/db'
 import { businessExportQuery, businessListQuery, uuidParam } from '@meridian/shared'
 import type { FastifyPluginAsync } from 'fastify'
+import { completeness, contactability } from '@meridian/website'
 
 type Filters = ReturnType<typeof businessExportQuery.parse>
 
@@ -28,6 +29,42 @@ const LATEST_AUDIT = sql`(select i.id from investigations i where i.business_id 
 const ISSUE_WEIGHT = sql`(select coalesce(sum(case f.severity when 'critical' then 8 when 'high' then 5 when 'medium' then 3 when 'low' then 1 else 0 end), 0)::int from findings f where f.investigation_id = ${LATEST_AUDIT})`
 
 const HEALTH = sql`(select (i.summary->'scores'->>'health')::int from investigations i where i.id = ${LATEST_AUDIT})`
+
+const SCORE_INPUTS = {
+  contactChannels: sql<string[]>`array(select distinct c.type from contact_points c where c.business_id = "businesses"."id" and c.stale_at is null and not (c.type = 'email' and coalesce(c.role, 'unknown') in ('privacy_legal', 'no_reply', 'technical')))`,
+  anyContact: sql<boolean>`exists (select 1 from contact_points c where c.business_id = "businesses"."id" and c.stale_at is null)`,
+  auditPages: sql<number | null>`(select (i.summary->>'pagesAudited')::int from investigations i where i.id = ${LATEST_AUDIT})`,
+  techCount: sql<number>`(select count(*)::int from website_technologies t where t.investigation_id = ${LATEST_AUDIT})`,
+  scanDone: sql<boolean>`exists (select 1 from investigations i where i.business_id = "businesses"."id" and i.kind = 'contact_scan' and i.status = 'completed')`,
+}
+
+function leadScores(r: {
+  industry: string | null
+  niche: string | null
+  city: string | null
+  website: string | null
+  auditOutcome: string | null
+  contactChannels: string[]
+  anyContact: boolean
+  auditPages: number | null
+  techCount: number
+  scanDone: boolean
+}) {
+  return {
+    contactability: contactability(r.contactChannels),
+    completeness: completeness({
+      industry: Boolean(r.industry),
+      niche: Boolean(r.niche),
+      city: Boolean(r.city),
+      hasWebsite: Boolean(r.website),
+      auditOk: r.auditOutcome === 'ok',
+      auditPages: r.auditPages ?? 0,
+      techCount: r.techCount,
+      contactScanDone: r.scanDone,
+      hasContact: r.anyContact,
+    }).score,
+  }
+}
 
 const PLATFORM = sql`(select t.name || coalesce(' ' || t.version, '') from website_technologies t where t.investigation_id = ${LATEST_AUDIT} and t.category in ('website_builder','cms','ecommerce','framework') order by case t.category when 'website_builder' then 1 when 'cms' then 2 when 'ecommerce' then 3 else 4 end, t.confidence desc limit 1)`
 
@@ -58,7 +95,7 @@ const orderFor = (sort: 'recent' | 'issues' | 'health') =>
   sort === 'issues'
     ? [sql`${ISSUE_WEIGHT} desc`, businesses.name]
     : sort === 'health'
-      ? [sql`${HEALTH} asc nulls last`, businesses.name]
+      ? [sql`${HEALTH} asc nulls last`, sql`${ISSUE_WEIGHT} desc`, businesses.name]
       : [desc(businesses.lastSeenAt), businesses.name]
 
 function cell(v: unknown, phone = false): string {
@@ -101,6 +138,7 @@ export const businessRoutes =
           issueWeight: sql<number>`${ISSUE_WEIGHT}`,
           issueCount: sql<number>`(select count(*)::int from findings f where f.investigation_id = ${LATEST_AUDIT} and f.severity <> 'info')`,
           health: sql<number | null>`${HEALTH}`,
+          ...SCORE_INPUTS,
           signals: sql<string[]>`array(select f.code from findings f where f.investigation_id = ${LATEST_AUDIT} and f.severity in ('medium','high','critical') order by case f.severity when 'critical' then 3 when 'high' then 2 else 1 end desc, f.code limit 3)`,
         })
         .from(businesses)
@@ -112,10 +150,24 @@ export const businessRoutes =
       const [t] = await db.select({ total: sql<number>`count(*)::int` }).from(businesses).where(where)
 
       return {
-        data: rows.map(({ auditId, auditOutcome, issueWeight, issueCount, health, signals, ...rest }) => ({
-          ...rest,
-          audit: auditId ? { outcome: auditOutcome, issueWeight, issueCount, health, signals } : null,
-        })),
+        data: rows.map(
+          ({ auditId, auditOutcome, issueWeight, issueCount, signals, health, contactChannels, anyContact, auditPages, techCount, scanDone, ...rest }) => ({
+            ...rest,
+            audit: auditId ? { outcome: auditOutcome, issueWeight, issueCount, signals, health } : null,
+            scores: leadScores({
+              industry: rest.industry,
+              niche: rest.niche,
+              city: rest.city,
+              website: rest.website,
+              auditOutcome,
+              contactChannels,
+              anyContact,
+              auditPages,
+              techCount,
+              scanDone,
+            }),
+          }),
+        ),
         page: { limit: f.limit, offset: f.offset, total: t?.total ?? 0 },
       }
     })
@@ -141,6 +193,7 @@ export const businessRoutes =
           auditOutcome: sql<string | null>`(select i.summary->>'outcome' from investigations i where i.id = ${LATEST_AUDIT})`,
           issueWeight: sql<number>`${ISSUE_WEIGHT}`,
           health: sql<number | null>`${HEALTH}`,
+          ...SCORE_INPUTS,
           issues: sql<string[]>`array(select f.title from findings f where f.investigation_id = ${LATEST_AUDIT} and f.severity in ('medium','high','critical') order by case f.severity when 'critical' then 3 when 'high' then 2 else 1 end desc, f.code limit 3)`,
           platform: sql<string | null>`${PLATFORM}`,
         })
@@ -149,12 +202,13 @@ export const businessRoutes =
         .orderBy(...orderFor(f.sort))
         .limit(5000)
 
-      const header = ['lead_id', 'name', 'industry', 'niche', 'city', 'website', 'platform', 'email', 'email_type', 'phone', 'audit_status', 'issue_weight', 'health', 'top_issues']
+      const header = ['lead_id', 'name', 'industry', 'niche', 'city', 'website', 'platform', 'email', 'email_type', 'phone', 'audit_status', 'issue_weight', 'health', 'contactability', 'completeness', 'top_issues']
       const lines = rows.map((r) =>
         [
           cell(r.id), cell(r.name), cell(r.industry), cell(r.niche), cell(r.city), cell(r.website), cell(r.platform),
           cell(r.email), cell(r.emailRole), cell(r.phone, true), cell(r.auditOutcome), cell(r.auditOutcome ? r.issueWeight : ''),
           cell(r.health), cell(r.issues.join(' | ')),
+          cell(leadScores(r).contactability), cell(leadScores(r).completeness),
         ].join(','),
       )
       const stamp = new Date().toISOString().slice(0, 10)

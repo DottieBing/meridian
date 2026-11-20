@@ -22,4 +22,9 @@ export async function ensureQueues(boss: Boss): Promise<void> {
     retryDelay: 120,
     expireInSeconds: 900,
   })
+  await boss.createQueue(QUEUES.browserAudit, {
+    retryLimit: 1,
+    retryDelay: 120,
+    expireInSeconds: 300,
+  })
 }

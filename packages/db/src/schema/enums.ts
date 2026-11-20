@@ -36,6 +36,7 @@ export const INVESTIGATION_KINDS = [
   'website_audit',
   'tech_detection',
   'competitor_scan',
+  'browser_audit'
 ] as const
 export type InvestigationKind = (typeof INVESTIGATION_KINDS)[number]
 

@@ -5,10 +5,12 @@ import { registerAudits } from './audits'
 import { registerContacts } from './contacts'
 import { registerDiscovery } from './discovery'
 import { registerPing } from './ping'
+import { registerBrowser } from './browser'
 
 export async function registerHandlers(boss: Boss, log: Logger, db: Db): Promise<void> {
   await registerPing(boss, log)
   await registerDiscovery(boss, db, log)
   await registerContacts(boss, db, log)
   await registerAudits(boss, db, log)
+  await registerBrowser(boss, db, log)
 }
