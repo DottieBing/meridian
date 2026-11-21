@@ -1,4 +1,4 @@
-import { FetchError, PoliteClient, savePageSnapshot, type Page } from '@meridian/crawl'
+import { FetchError, PoliteClient, savePageSnapshot, isOnline, type Page } from '@meridian/crawl'
 import {
   and,
   evidence,
@@ -15,6 +15,7 @@ import { buildContext, loadPages, pickHome } from './context'
 import type { AuditFiles, AuditPage, FindingDraft, Log, DetectedTech } from './types'
 import { TECH_METHOD_VERSION } from './tech/detect'
 import { scoreFindings } from './scores'
+import { detectPlaceholder } from './placeholder'
 
 const FRESH_MS = 7 * 24 * 3600 * 1000
 
@@ -296,6 +297,9 @@ export async function runWebsiteAudit(db: Db, id: string, log: Log): Promise<Rec
       }
       const outcome =
         e.kind === 'dns' ? 'dead' : e.kind === 'robots' ? 'blocked_by_robots' : e.kind === 'not_html' ? 'not_html' : 'unreachable'
+      if ((outcome === 'unreachable' || outcome === 'dead') && !(await isOnline())) {
+        throw new Error('OFFLINE: the computer running Meridian had no internet connection')
+      }
       return fail(outcome, `${e.kind}: ${e.message}`)
     }
     const bad = statusOutcome(page.status)
@@ -315,6 +319,19 @@ export async function runWebsiteAudit(db: Db, id: string, log: Log): Promise<Rec
   }
   const context = buildContext(site.url, pages, files)
   if (!context) return fail('no_snapshot', 'No readable page snapshot was available')
+
+  const placeholder = detectPlaceholder(context.home.html, context.home.bytes)
+  if (placeholder) {
+    return finishWith({
+      outcome: placeholder.kind === 'redirect_stub' ? 'redirect_stub' : 'placeholder',
+      siteUrl: site.url,
+      mainPage: context.home.url,
+      placeholder,
+      error: placeholder.detail,
+      pagesAudited: context.pages.length,
+      durationMs: Date.now() - started,
+    })
+  }
 
   const { findings, errors } = runRules(context)
   const byId = new Map(context.pages.map((p) => [p.snapshotId, p]))

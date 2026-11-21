@@ -1,24 +1,25 @@
-import { Resolver } from 'node:dns/promises'
+import { connect } from 'node:net'
 
-const resolver = new Resolver({ timeout: 2500, tries: 1 })
-resolver.setServers(['1.1.1.1', '8.8.8.8'])
+function canConnect(host: string, port: number, ms: number): Promise<boolean> {
+  return new Promise((resolve) => {
+    const socket = connect({ host, port })
+    const done = (ok: boolean) => {
+      socket.destroy()
+      resolve(ok)
+    }
+    socket.setTimeout(ms, () => done(false))
+    socket.once('connect', () => done(true))
+    socket.once('error', () => done(false))
+  })
+}
 
 let cache: { at: number; online: boolean } | null = null
 
-/** True when this machine can reach the internet. Asks public DNS servers directly, so a site's own DNS problems never count. Cached for 15 seconds. */
+/** True when this machine can reach the internet. Connects straight to public addresses, so no website's DNS problems can count. Cached for 15 seconds. */
 export async function isOnline(): Promise<boolean> {
   if (cache && Date.now() - cache.at < 15_000) return cache.online
-  let online = false
-  for (const host of ['example.com', 'cloudflare.com']) {
-    try {
-      if ((await resolver.resolve4(host)).length > 0) {
-        online = true
-        break
-      }
-    } catch {
-      /* try the next host */
-    }
-  }
+  const results = await Promise.all([canConnect('1.1.1.1', 443, 3000), canConnect('8.8.8.8', 443, 3000)])
+  const online = results.some(Boolean)
   cache = { at: Date.now(), online }
   return online
 }

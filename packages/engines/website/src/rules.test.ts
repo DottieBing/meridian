@@ -10,6 +10,7 @@ import { completeness, contactability } from './lead-scores'
 import { isPrivateHost, unusableReading } from './browser/guards'
 import { BROWSER_RULES, runBrowserRules } from './browser/rules'
 import type { BrowserMeasurement } from './browser/measure'
+import { detectPlaceholder } from './placeholder'
 
 const GOOD_HEADERS = {
   'strict-transport-security': 'max-age=31536000',
@@ -262,6 +263,24 @@ test('access-denied and empty pages are not treated as the site', () => {
   assert.equal(unusableReading({ textChars: 130, textSample: 'Example Domain', requests: 2, transferBytes: 2000 }), null)
   // a long page that merely mentions "forbidden" is fine
   assert.equal(unusableReading({ ...base, textChars: 5000, textSample: 'Parking is forbidden after 10pm' }), null)
+})
+
+test('pages that are not real websites are recognised, and real pages are left alone', () => {
+  const kind = (html: string) => detectPlaceholder(html, html.length)?.kind ?? null
+  assert.equal(kind('<!DOCTYPE html><html><head><script>window.onload=function(){window.location.href="/lander"}</script></head></html>'), 'parked')
+  assert.equal(kind('<html><head><title>Vias Hotel</title></head><frameset rows="100%,*"><frame src="https://delcoso.com/domains/viashotel.com" /></frameset></html>'), 'parked')
+  assert.equal(kind('<html><head><title>IIS Windows Server</title></head><body><img src="iisstart.png"></body></html>'), 'server_default')
+  assert.equal(kind('<html><head><title>Welcome to nginx!</title></head><body><h1>Welcome to nginx!</h1></body></html>'), 'server_default')
+  assert.equal(kind('<html><head><title>Coming soon</title></head><body><h1>Coming soon</h1></body></html>'), 'coming_soon')
+  assert.equal(kind('<html><body><h1>This domain is for sale</h1></body></html>'), 'parked')
+  assert.equal(kind('<html><head><script>location.href="/en/"</script></head></html>'), 'redirect_stub')
+  const gtmShell =
+    '<html><head><title>Elya Beach Suites</title></head><body><noscript><iframe src="https://www.googletagmanager.com/ns.html?id=GTM-ABC123" height="0" width="0" style="display:none"></iframe></noscript><div id="root"></div></body></html>'
+  assert.equal(kind(gtmShell), null)
+  // real pages
+  assert.equal(kind('<html><head><title>Hotel</title></head><body><h1>Hotel Aphrodite</h1><p>Book your stay.</p></body></html>'), null)
+  const property = `<html><head><title>Cyprus Property</title></head><body>${'<p>Apartment for sale in Paphos, sea views.</p>'.repeat(200)}</body></html>`
+  assert.equal(kind(property), null)
 })
 
 test('every rule in the engine was exercised by a fixture', () => {

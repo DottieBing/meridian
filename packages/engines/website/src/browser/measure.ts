@@ -1,6 +1,6 @@
 import { mkdir } from 'node:fs/promises'
 import { join } from 'node:path'
-import { chromium, devices } from 'playwright'
+import { chromium, devices, type Page } from 'playwright'
 import { isPrivateHost } from './guards'
 import { screenshotDir } from './paths'
 
@@ -122,6 +122,20 @@ type PageProbe = {
 
 const clip = (s: string, n: number) => (s.length > n ? `${s.slice(0, n - 1)}…` : s)
 
+/** Reads the page again if a script redirected it in the middle of the reading. */
+async function evaluateStable<T>(page: Page, script: string): Promise<T> {
+  for (let attempt = 0; ; attempt++) {
+    try {
+      return (await page.evaluate(script)) as T
+    } catch (e) {
+      const message = e instanceof Error ? e.message : ''
+      if (attempt >= 2 || !/execution context was destroyed|navigat/i.test(message)) throw e
+      await page.waitForLoadState('domcontentloaded', { timeout: 20_000 }).catch(() => undefined)
+      await page.waitForTimeout(1_500)
+    }
+  }
+}
+
 /** Loads the page like a phone would and measures it. Throws if the page cannot be loaded at all. */
 export async function measureMobile(url: string, opts: MeasureOptions = {}): Promise<BrowserMeasurement> {
   const started = Date.now()
@@ -208,7 +222,7 @@ export async function measureMobile(url: string, opts: MeasureOptions = {}): Pro
     if (contentLoaded) await page.waitForLoadState('networkidle', { timeout: 8_000 }).catch(() => undefined)
     await page.waitForTimeout(1_500)
 
-    const probe = (await page.evaluate(PAGE_SCRIPT)) as PageProbe
+    const probe = await evaluateStable<PageProbe>(page, PAGE_SCRIPT)
     const viewport = page.viewportSize() ?? { width: probe.clientWidth, height: 0 }
 
     let screenshotPath: string | null = null

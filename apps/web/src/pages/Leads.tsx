@@ -20,6 +20,8 @@ const STATUS_NOTE: Record<string, string> = {
   blocked_by_robots: 'robots.txt blocks us',
   not_html: 'Not a web page',
   suppressed: 'Suppressed',
+  placeholder: 'No real website',
+  redirect_stub: 'Only redirects',
 }
 
 function Toggle({ label, on, onClick }: { label: string; on: boolean; onClick: () => void }) {

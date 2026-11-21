@@ -35,6 +35,8 @@ const OUTCOME_NOTE: Record<string, string> = {
   not_html: 'The address is not a web page.',
   suppressed: 'This domain is on the suppression list.',
   no_snapshot: 'No readable page was available to audit.',
+  placeholder: 'This address does not host a real website. It is parked, for sale, suspended, a server default page or a "coming soon" page.',
+  redirect_stub: 'The main page only redirects with a script, which the plain audit does not follow. This site needs a manual look.',
 }
 
 function shortUrl(u: string | null): string {

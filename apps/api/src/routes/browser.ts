@@ -84,6 +84,7 @@ export const browserRoutes =
                      or (i.status = 'completed'
                          and coalesce(i.summary->>'outcome', '') in ('load_failed', 'timeout')
                          and i.created_at > now() - interval '1 day')))`,
+          ),
         )
         .orderBy(sql`${HEALTH} asc nulls last`, businesses.name)
         .limit(f.limit)

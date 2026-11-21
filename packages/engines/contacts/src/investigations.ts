@@ -3,7 +3,7 @@ import {
 } from '@meridian/db'
 import { scanWebsite } from './scan'
 import type { Log } from './types'
-import { savePageSnapshots } from '@meridian/crawl'
+import { savePageSnapshots, isOnline } from '@meridian/crawl'
 
 export const METHOD_VERSION = 'contact-scan/1'
 
@@ -74,6 +74,9 @@ export async function runContactScan(db: Db, id: string, log: Log): Promise<Reco
     knownDomain: site.domain,
     log,
   })
+  if ((result.outcome === 'unreachable' || result.outcome === 'dead') && !(await isOnline())) {
+    throw new Error('OFFLINE: the computer running Meridian had no internet connection')
+  }
 
     let snapshotsSaved = 0
   try {
