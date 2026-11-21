@@ -4,6 +4,8 @@ import { saveFindings } from '../investigations'
 import { scoreFindings } from '../scores'
 import type { Log } from '../types'
 import { BROWSER_METHOD_VERSION, runBrowserRules } from './rules'
+import { unusableReading } from './guards'
+import { isOnline } from '@meridian/crawl'
 
 export async function createBrowserAudit(
   db: Db,
@@ -113,6 +115,9 @@ export async function runBrowserAudit(db: Db, id: string, log: Log): Promise<Rec
   } catch (e) {
     const message = e instanceof Error ? e.message : String(e)
     if (/executable doesn't exist|browsertype\.launch/i.test(message)) throw e // a setup problem, fail loudly
+    if (/ERR_INTERNET_DISCONNECTED|ERR_NETWORK_CHANGED|ERR_NETWORK_IO_SUSPENDED/i.test(message) || !(await isOnline())) {
+      throw new Error('OFFLINE: the computer running Meridian had no internet connection, so nothing was recorded for this site')
+    }
     return finishWith({
       outcome: /timeout/i.test(message) ? 'timeout' : 'load_failed',
       url: target,
@@ -126,6 +131,23 @@ export async function runBrowserAudit(db: Db, id: string, log: Log): Promise<Rec
   }
   if (m.status !== null && m.status >= 400) {
     return finishWith({ outcome: 'load_failed', url: target, error: `HTTP ${m.status}`, durationMs: Date.now() - started })
+  }
+
+  const unusable = unusableReading(m)
+  if (unusable) {
+    const seenShot = m.screenshotPath ? basename(m.screenshotPath) : null
+    return finishWith({
+      outcome: unusable === 'blocked' ? 'blocked' : 'empty_page',
+      url: target,
+      finalUrl: m.finalUrl,
+      screenshot: seenShot,
+      pageText: m.textSample.slice(0, 200),
+      error:
+        unusable === 'blocked'
+          ? 'The browser was shown an access-denied or challenge page instead of the site'
+          : 'The page rendered almost nothing',
+      durationMs: Date.now() - started,
+    })
   }
 
   const shot = m.screenshotPath ? basename(m.screenshotPath) : null
@@ -158,6 +180,7 @@ export async function runBrowserAudit(db: Db, id: string, log: Log): Promise<Rec
       layoutWidth: m.layoutWidth,
       overflowPx: m.overflow.pixels,
       scrollable: m.overflow.scrollable,
+      textChars: m.textChars,
     },
     calibration: baseline,
     findings: findings.length,

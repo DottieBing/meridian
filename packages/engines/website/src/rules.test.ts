@@ -7,7 +7,7 @@ import type { AuditContext, AuditFiles, AuditPage } from './types'
 import { detectTechnologies } from './tech/detect'
 import { scoreFindings } from './scores'
 import { completeness, contactability } from './lead-scores'
-import { isPrivateHost } from './browser/guards'
+import { isPrivateHost, unusableReading } from './browser/guards'
 import { BROWSER_RULES, runBrowserRules } from './browser/rules'
 import type { BrowserMeasurement } from './browser/measure'
 
@@ -221,7 +221,7 @@ const HEALTHY_MOBILE: BrowserMeasurement = {
   domContentLoadedMs: 800, loadMs: 1500, requests: 30, transferBytes: 1_200_000,
   failedRequests: [], consoleErrors: [], pageErrors: [],
   overflow: { pixels: 0, scrollable: true, offenders: [] },
-  textChars: 2000, screenshotPath: null, durationMs: 5000,
+  textChars: 2000, textSample: 'Welcome to our hotel', screenshotPath: null, durationMs: 5000,
 }
 
 test('a healthy mobile measurement produces no browser findings', () => {
@@ -250,6 +250,18 @@ test('browser rules fire on a broken mobile page and ignore third-party failures
   // An unscrollable page (hidden overflow) is not flagged
   const hidden = { ...broken, overflow: { pixels: 120, scrollable: false, offenders: [] } }
   assert.ok(!runBrowserRules(hidden, { screenshotRel: null }).findings.some((f) => f.code === 'mobile.overflow.horizontal'))
+})
+
+test('access-denied and empty pages are not treated as the site', () => {
+  const base = { textChars: 2000, textSample: 'Welcome to our hotel', requests: 30, transferBytes: 1_200_000 }
+  assert.equal(unusableReading(base), null)
+  assert.equal(unusableReading({ ...base, textChars: 18, textSample: 'Access Denied', requests: 3, transferBytes: 4000 }), 'blocked')
+  assert.equal(unusableReading({ ...base, textChars: 120, textSample: 'Just a moment... Checking your browser', requests: 6 }), 'blocked')
+  assert.equal(unusableReading({ ...base, textChars: 5, textSample: '', requests: 3, transferBytes: 9000 }), 'empty_page')
+  // a tiny but real page (example.com has about 130 characters) is fine
+  assert.equal(unusableReading({ textChars: 130, textSample: 'Example Domain', requests: 2, transferBytes: 2000 }), null)
+  // a long page that merely mentions "forbidden" is fine
+  assert.equal(unusableReading({ ...base, textChars: 5000, textSample: 'Parking is forbidden after 10pm' }), null)
 })
 
 test('every rule in the engine was exercised by a fixture', () => {

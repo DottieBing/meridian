@@ -23,6 +23,7 @@ export type BrowserMeasurement = {
   pageErrors: string[]
   overflow: { pixels: number; scrollable: boolean; offenders: { el: string; right: number; width: number }[] }
   textChars: number
+  textSample: string
   screenshotPath: string | null
   durationMs: number
 }
@@ -100,6 +101,7 @@ const PAGE_SCRIPT = `(() => {
     clientWidth: vw, scrollWidth: sw, scrollable,
     offenders: offenders.slice(0, 5),
     textChars: text.trim().length,
+    textSample: text.trim().replace(/\\s+/g, ' ').slice(0, 400),
     finalUrl: location.href,
   }
 })()`
@@ -114,6 +116,7 @@ type PageProbe = {
   scrollable: boolean
   offenders: { el: string; right: number; width: number }[]
   textChars: number
+  textSample: string
   finalUrl: string
 }
 
@@ -240,6 +243,7 @@ export async function measureMobile(url: string, opts: MeasureOptions = {}): Pro
         offenders: probe.offenders,
       },
       textChars: probe.textChars,
+      textSample: probe.textSample,
       screenshotPath,
       durationMs: Date.now() - started,
     }

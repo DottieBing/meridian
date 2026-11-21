@@ -35,6 +35,7 @@ export type BusinessFilters = {
   limit: number
   offset: number
   tech?: string
+  mobileIssue?: boolean
 }
 
 export type BusinessAuditSummary = {
@@ -63,6 +64,7 @@ export type BusinessListItem = {
   audit: BusinessAuditSummary | null
   platform: string | null
   scores: { contactability: number; completeness: number }
+  mobile: { signals: string[]; health: number | null } | null
 }
 
 export type ContactType = 'email' | 'phone' | 'social' | 'contact_form' | 'address'
@@ -238,6 +240,7 @@ export type MobileSummary = {
   screenshot?: string | null
   durationMs?: number
   partial?: boolean
+  pageText?: string
   measurements?: {
     status: number | null
     loaded: boolean

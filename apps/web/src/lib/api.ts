@@ -42,6 +42,7 @@ function businessQuery(f: BusinessFilters, paging: boolean): URLSearchParams {
   if (f.minSeverity) p.set('minSeverity', f.minSeverity)
   if (f.sort) p.set('sort', f.sort)
   if (f.tech) p.set('tech', f.tech)
+  if (f.mobileIssue !== undefined) p.set('mobileIssue', String(f.mobileIssue))
   if (paging) {
     p.set('limit', String(f.limit))
     p.set('offset', String(f.offset))

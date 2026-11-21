@@ -71,6 +71,7 @@ export function Leads() {
   const hasPhone = params.get('phone') === '1'
   const contactable = params.get('contact') === '1'
   const audited = params.get('audited') === '1'
+  const mobileIssue = params.get('mobile') === '1'
   const minSeverity = SEVERITIES.find((s) => s === params.get('sev'))
   const sortParam = params.get('sort')
   const sort = sortParam === 'issues' || sortParam === 'health' ? sortParam : 'recent'
@@ -115,6 +116,7 @@ export function Leads() {
     ...(audited ? { audited: true } : {}),
     ...(minSeverity ? { minSeverity } : {}),
     ...(tech ? { tech } : {}),
+    ...(mobileIssue ? { mobileIssue: true } : {}),
     sort,
     limit: PAGE_SIZE,
     offset: page * PAGE_SIZE,
@@ -128,7 +130,7 @@ export function Leads() {
   )
   const from = total === 0 ? 0 : page * PAGE_SIZE + 1
   const to = Math.min(total, (page + 1) * PAGE_SIZE)
-  const anyFilter = Boolean(q || industry || hasWebsite || hasEmail || hasPhone || contactable || audited || minSeverity || tech)
+  const anyFilter = Boolean(q || industry || hasWebsite || hasEmail || hasPhone || contactable || audited || minSeverity || tech || mobileIssue)
 
   const analyse = useMutation({
     mutationFn: () => startBulkAnalyse(industry || undefined),
@@ -236,6 +238,7 @@ export function Leads() {
         <Toggle label="Has phone" on={hasPhone} onClick={() => setParam('phone', hasPhone ? null : '1')} />
         <Toggle label="Contactable email" on={contactable} onClick={() => setParam('contact', contactable ? null : '1')} />
         <Toggle label="Analysed" on={audited} onClick={() => setParam('audited', audited ? null : '1')} />
+        <Toggle label="Mobile issues" on={mobileIssue} onClick={() => setParam('mobile', mobileIssue ? null : '1')} />
         {anyFilter && (
           <button
             type="button"
@@ -312,6 +315,17 @@ export function Leads() {
                 </td>
                 <td className="px-4 py-2.5">
                   <Issues a={b.audit} />
+                  {b.mobile && b.mobile.signals.length > 0 && (
+                    <div className="mt-1 flex flex-wrap gap-1">
+                      {b.mobile.signals
+                        .filter((s) => !(s === 'mobile.layout.not_responsive' && b.audit?.signals.includes('ux.viewport.missing')))
+                        .map((s) => (
+                          <Badge key={s} tone={SEVERE_SIGNALS.has(s) ? 'danger' : 'warn'}>
+                            {signalLabel(s)}
+                          </Badge>
+                        ))}
+                    </div>
+                  )}
                 </td>
                 <td className="px-4 py-2.5 text-right font-mono">{b.audit?.health ?? dash}</td>
                 <td className="px-4 py-2.5">

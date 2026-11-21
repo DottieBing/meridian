@@ -11,7 +11,9 @@ const OUTCOME_NOTE: Record<string, string> = {
     'The website did not start responding within 45 seconds from the machine running Meridian. That says as much about our connection as about the site, so re-test before drawing conclusions.',
   load_failed: 'The browser could not load the page.',
   blocked:
-    'The website refused the browser (bot protection). Meridian does not try to get around that, so this site needs a manual look.',
+    'The website refused the browser or showed an access-denied page. Meridian does not try to get around that, so this site needs a manual look.',
+  empty_page:
+    'The page rendered almost nothing in the browser (blank, still loading, or a script-only page), so there was nothing to measure.',
   not_eligible: 'The website audit has to succeed before the mobile check can run.',
   suppressed: 'This domain is on the suppression list.',
 }
@@ -87,6 +89,14 @@ export function MobilePanel({ businessId, hasWebsite }: { businessId: string; ha
         <div className="rounded-xl border border-border bg-surface p-4 text-sm">
           <div className="font-medium">The mobile check could not be completed</div>
           <p className="mt-1 text-muted">{OUTCOME_NOTE[summary.outcome ?? ''] ?? 'The check did not complete.'}</p>
+          {summary.screenshot && (
+            <img
+              src={`/api/v1/investigations/${data.investigation.id}/screenshot`}
+              alt="What the browser was shown"
+              className="mt-3 max-h-64 w-auto rounded-lg border border-border"
+            />
+          )}
+          {summary.pageText && <p className="mt-2 font-mono text-xs text-muted">“{summary.pageText}”</p>}
           <p className="mt-1 text-xs text-muted">{fmtAgo(data.investigation.createdAt)}</p>
         </div>
       )}
@@ -132,6 +142,13 @@ export function MobilePanel({ businessId, hasWebsite }: { businessId: string; ha
               </p>
             </section>
           </div>
+
+          {summary.partial && (
+            <p className="text-xs text-warn">
+              The page was still loading when we measured it (slow connection from this machine), so these results
+              are what we saw so far. Some issues may have been missed.
+            </p>
+          )}
 
           {data.findings.length > 0 ? (
             <div className="rounded-xl border border-border bg-surface">

@@ -68,6 +68,12 @@ function leadScores(r: {
 
 const PLATFORM = sql`(select t.name || coalesce(' ' || t.version, '') from website_technologies t where t.investigation_id = ${LATEST_AUDIT} and t.category in ('website_builder','cms','ecommerce','framework') order by case t.category when 'website_builder' then 1 when 'cms' then 2 when 'ecommerce' then 3 else 4 end, t.confidence desc limit 1)`
 
+const LATEST_MOBILE = sql`(select i.id from investigations i where i.business_id = "businesses"."id" and i.kind = 'browser_audit' and i.status = 'completed' and i.summary->>'outcome' = 'ok' order by i.created_at desc limit 1)`
+
+const MOBILE_SEVERE = sql`array(select f.code from findings f where f.investigation_id = ${LATEST_MOBILE} and f.is_objective and f.severity in ('medium','high','critical') order by case f.severity when 'critical' then 3 when 'high' then 2 else 1 end desc, f.code limit 3)`
+
+const MOBILE_HEALTH = sql`(select (i.summary->'scores'->>'health')::int from investigations i where i.id = ${LATEST_MOBILE})`
+
 const CONTACTABLE = `exists (select 1 from contact_points c where c.business_id = "businesses"."id" and c.type = 'email' and c.stale_at is null and coalesce(c.role, 'unknown') not in ('privacy_legal', 'no_reply', 'technical'))`
 
 function buildWhere(f: Filters) {
@@ -88,6 +94,11 @@ function buildWhere(f: Filters) {
     f.tech
       ? sql`exists (select 1 from website_technologies t where t.investigation_id = ${LATEST_AUDIT} and t.slug = ${f.tech})`
       : undefined,
+    f.mobileIssue === undefined
+      ? undefined
+      : sql.raw(
+          `${f.mobileIssue ? '' : 'not '}exists (select 1 from findings f where f.investigation_id = (select i.id from investigations i where i.business_id = "businesses"."id" and i.kind = 'browser_audit' and i.status = 'completed' and i.summary->>'outcome' = 'ok' order by i.created_at desc limit 1) and f.is_objective and f.severity in ('medium','high','critical'))`,
+        ),
   )
 }
 
@@ -133,6 +144,9 @@ export const businessRoutes =
           locationCount: sql<number>`(select count(*)::int from business_locations l where l.business_id = "businesses"."id")`,
           contactable: sql<boolean>`${sql.raw(CONTACTABLE)}`,
           platform: sql<string | null>`${PLATFORM}`,
+          mobileId: sql<string | null>`${LATEST_MOBILE}`,
+          mobileSignals: sql<string[]>`${MOBILE_SEVERE}`,
+          mobileHealth: sql<number | null>`${MOBILE_HEALTH}`,
           auditId: sql<string | null>`${LATEST_AUDIT}`,
           auditOutcome: sql<string | null>`(select i.summary->>'outcome' from investigations i where i.id = ${LATEST_AUDIT})`,
           issueWeight: sql<number>`${ISSUE_WEIGHT}`,
@@ -151,7 +165,7 @@ export const businessRoutes =
 
       return {
         data: rows.map(
-          ({ auditId, auditOutcome, issueWeight, issueCount, signals, health, contactChannels, anyContact, auditPages, techCount, scanDone, ...rest }) => ({
+          ({ auditId, auditOutcome, issueWeight, issueCount, signals, health, contactChannels, anyContact, auditPages, techCount, scanDone, mobileId, mobileSignals, mobileHealth, ...rest }) => ({
             ...rest,
             audit: auditId ? { outcome: auditOutcome, issueWeight, issueCount, signals, health } : null,
             scores: leadScores({
@@ -166,6 +180,7 @@ export const businessRoutes =
               techCount,
               scanDone,
             }),
+            mobile: mobileId ? { signals: mobileSignals, health: mobileHealth } : null,
           }),
         ),
         page: { limit: f.limit, offset: f.offset, total: t?.total ?? 0 },
@@ -196,18 +211,19 @@ export const businessRoutes =
           ...SCORE_INPUTS,
           issues: sql<string[]>`array(select f.title from findings f where f.investigation_id = ${LATEST_AUDIT} and f.severity in ('medium','high','critical') order by case f.severity when 'critical' then 3 when 'high' then 2 else 1 end desc, f.code limit 3)`,
           platform: sql<string | null>`${PLATFORM}`,
+          mobileIssues: sql<string[]>`array(select f.title from findings f where f.investigation_id = ${LATEST_MOBILE} and f.is_objective and f.severity in ('medium','high','critical') order by case f.severity when 'critical' then 3 when 'high' then 2 else 1 end desc, f.code limit 3)`,
         })
         .from(businesses)
         .where(buildWhere(f))
         .orderBy(...orderFor(f.sort))
         .limit(5000)
 
-      const header = ['lead_id', 'name', 'industry', 'niche', 'city', 'website', 'platform', 'email', 'email_type', 'phone', 'audit_status', 'issue_weight', 'health', 'contactability', 'completeness', 'top_issues']
+      const header = ['lead_id', 'name', 'industry', 'niche', 'city', 'website', 'platform', 'email', 'email_type', 'phone', 'audit_status', 'issue_weight', 'health', 'contactability', 'completeness', 'top_issues', 'mobile_issues']
       const lines = rows.map((r) =>
         [
           cell(r.id), cell(r.name), cell(r.industry), cell(r.niche), cell(r.city), cell(r.website), cell(r.platform),
           cell(r.email), cell(r.emailRole), cell(r.phone, true), cell(r.auditOutcome), cell(r.auditOutcome ? r.issueWeight : ''),
-          cell(r.health), cell(r.issues.join(' | ')),
+          cell(r.health), cell(r.issues.join(' | ')), cell(r.mobileIssues.join(' | ')),
           cell(leadScores(r).contactability), cell(leadScores(r).completeness),
         ].join(','),
       )

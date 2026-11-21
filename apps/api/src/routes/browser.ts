@@ -78,8 +78,12 @@ export const browserRoutes =
               select 1 from investigations i
               where i.website_id = ${websites.id} and i.kind = 'browser_audit'
                 and (i.status in ('queued', 'running')
-                     or (i.status = 'completed' and i.created_at > now() - (${f.auditAfterDays}::int * interval '1 day'))))`,
-          ),
+                     or (i.status = 'completed'
+                         and coalesce(i.summary->>'outcome', '') in ('ok', 'blocked', 'empty_page')
+                         and i.created_at > now() - (${f.auditAfterDays}::int * interval '1 day'))
+                     or (i.status = 'completed'
+                         and coalesce(i.summary->>'outcome', '') in ('load_failed', 'timeout')
+                         and i.created_at > now() - interval '1 day')))`,
         )
         .orderBy(sql`${HEALTH} asc nulls last`, businesses.name)
         .limit(f.limit)

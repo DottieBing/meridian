@@ -24,6 +24,12 @@ const LABELS: Record<string, string> = {
   'tech.flash.content': 'Flash content',
   'tech.analytics.universal_only': 'Dead Google Analytics',
   'tech.consent.not_detected': 'No cookie consent seen',
+  'mobile.layout.not_responsive': 'Not mobile-friendly',
+  'mobile.overflow.horizontal': 'Scrolls sideways on phone',
+  'mobile.layout_shift.high': 'Content jumps on load',
+  'mobile.resources.failed': 'Broken files',
+  'mobile.js.errors': 'Script errors',
+  'performance.page_weight.heavy': 'Very heavy page',
 }
 
 export const signalLabel = (code: string): string =>
@@ -35,4 +41,5 @@ export const SEVERE_SIGNALS = new Set([
   'seo.noindex',
   'seo.robots_txt.blocks_all',
   'ux.viewport.missing',
+  'mobile.layout.not_responsive',
 ])

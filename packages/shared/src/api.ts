@@ -25,6 +25,7 @@ export const businessListQuery = z.object({
   minSeverity: z.enum(['low', 'medium', 'high', 'critical']).optional(),
   sort: z.enum(['recent', 'issues', 'health']).default('recent'),
   tech: z.string().max(60).optional(),
+  mobileIssue: flag.optional(),
   ...paging,
 })
 

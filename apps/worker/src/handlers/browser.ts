@@ -1,7 +1,7 @@
 import type { Db } from '@meridian/db'
 import type { Boss } from '@meridian/queue'
 import { QUEUES, browserAuditPayload } from '@meridian/shared'
-import { failBrowserAudit, runBrowserAudit } from '@meridian/website'
+import { failBrowserAudit, isOnline, runBrowserAudit, waitForOnline } from '@meridian/website'
 import type { Logger } from '../logger'
 
 export async function registerBrowser(boss: Boss, db: Db, log: Logger): Promise<void> {
@@ -16,6 +16,11 @@ export async function registerBrowser(boss: Boss, db: Db, log: Logger): Promise<
         continue
       }
       const { investigationId } = parsed.data
+      if (!(await isOnline()) && !(await waitForOnline(5 * 60_000))) {
+        await failBrowserAudit(db, investigationId, 'OFFLINE: the computer running Meridian had no internet connection').catch(() => undefined)
+        out.push({ ok: false, investigationId, error: 'offline' })
+        continue
+      }
       try {
         const s = await runBrowserAudit(db, investigationId, (m) => log.info(m))
         log.info(`mobile check ${investigationId} finished: ${String(s['outcome'])}, ${String(s['findings'] ?? 0)} findings`)
@@ -25,6 +30,10 @@ export async function registerBrowser(boss: Boss, db: Db, log: Logger): Promise<
         log.error(`mobile check ${investigationId} failed: ${message}`)
         await failBrowserAudit(db, investigationId, message).catch(() => undefined)
         out.push({ ok: false, investigationId, error: message })
+        if (message.startsWith('OFFLINE')) {
+          log.error('offline: waiting for the connection before the next mobile check')
+          await waitForOnline(5 * 60_000)
+        }
       }
     }
     return out
