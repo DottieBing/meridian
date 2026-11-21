@@ -23,7 +23,7 @@ const SALE_TARGET =
   /sedo\.|dan\.com|afternic\.|hugedomains\.|delcoso\.|bodis\.|parkingcrew\.|sav\.com|forsale|undeveloped\.|godaddy\.com\/(?:forsale|domainfind)|\/(?:lander|parking|parked|domain-for-sale)\b/i
 const TRACKING_FRAME = /googletagmanager\.com|google-analytics\.com|doubleclick\.net|facebook\.com\/tr/i
 
-const visibleText = (html: string): string =>
+export const visibleText = (html: string): string =>
   html
     .replace(/<(script|style|noscript)\b[\s\S]*?<\/\1>/gi, ' ')
     .replace(/<!--[\s\S]*?-->/g, ' ')
