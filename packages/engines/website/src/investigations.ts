@@ -15,7 +15,7 @@ import { buildContext, loadPages, pickHome } from './context'
 import type { AuditFiles, AuditPage, FindingDraft, Log, DetectedTech } from './types'
 import { TECH_METHOD_VERSION } from './tech/detect'
 import { scoreFindings } from './scores'
-import { detectPlaceholder } from './placeholder'
+import { detectPlaceholder, isScriptRendered } from './placeholder'
 
 const FRESH_MS = 7 * 24 * 3600 * 1000
 
@@ -329,6 +329,7 @@ export async function runWebsiteAudit(db: Db, id: string, log: Log): Promise<Rec
       placeholder,
       error: placeholder.detail,
       pagesAudited: context.pages.length,
+      scriptRendered: isScriptRendered(context.home.html),
       durationMs: Date.now() - started,
     })
   }

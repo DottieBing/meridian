@@ -283,6 +283,15 @@ test('pages that are not real websites are recognised, and real pages are left a
   assert.equal(kind(property), null)
 })
 
+test('a script-rendered page is flagged once and not judged on its empty shell', () => {
+  const shell = `<!doctype html><html lang="en"><head><title>Hotel</title><meta name="viewport" content="width=device-width, initial-scale=1"><base href="/"><script>${'/* app bundle */'.repeat(120)}</script></head><body><app-root></app-root></body></html>`
+  const codes = codesOf(ctx(page(shell), FILES_OK, [page(shell)]))
+  assert.ok(codes.has('seo.script_rendered.content'))
+  for (const c of ['seo.h1.missing', 'seo.title.duplicate', 'seo.structured_data.missing', 'seo.canonical.missing']) {
+    assert.ok(!codes.has(c), `${c} should be skipped on a script-rendered page`)
+  }
+})
+
 test('every rule in the engine was exercised by a fixture', () => {
   const untested = RULES.map((r) => r.id).filter((id) => !fired.has(id))
   assert.deepEqual(untested, [], `rules with no fixture: ${untested.join(', ')}`)

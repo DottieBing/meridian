@@ -80,3 +80,11 @@ export function detectPlaceholder(html: string, bytes: number): Placeholder | nu
   }
   return null
 }
+
+const SCRIPT_APP_MARKER =
+  /<app-root|ng-version=|id=["'](?:root|app|__next|__nuxt)["']|data-reactroot|you need to enable javascript/i
+
+/** True when the HTML the server sends holds almost no text and carries a script-app marker, so the real content is built by scripts. */
+export function isScriptRendered(html: string): boolean {
+  return html.length >= 1500 && visibleText(html).length < 300 && SCRIPT_APP_MARKER.test(html)
+}
