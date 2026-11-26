@@ -9,6 +9,7 @@ import { Dashboard } from './pages/Dashboard'
 import { Leads } from './pages/Leads'
 import { PlannedPage } from './pages/PlannedPage'
 import { ReportSettingsPage } from './pages/ReportSettingsPage'
+import { InternalReportPage } from './pages/InternalReportPage'
 
 export default function App() {
   const [booted, setBooted] = useState(() => sessionStorage.getItem('meridian-booted') === '1')
@@ -28,6 +29,7 @@ export default function App() {
           <Route index element={<Dashboard />} />
           <Route path="leads" element={<Leads />} />
           <Route path="leads/:id" element={<BusinessDetailPage />} />
+          <Route path="leads/:id/report" element={<InternalReportPage />} />
           <Route path="settings/report" element={<ReportSettingsPage />} />
           {PLANNED_ITEMS.map((item) => (
             <Route key={item.path} path={item.path} element={<PlannedPage item={item} />} />

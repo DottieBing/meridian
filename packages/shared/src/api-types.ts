@@ -195,6 +195,7 @@ export type AuditSummary = {
   truncatedPages?: number
   durationMs?: number
   scores?: AuditScores
+  placeholder?: { kind: string; detail: string }
 }
 
 export type AuditDto = {
@@ -297,4 +298,31 @@ export function resolveHeader(s: {
   const name = s.orgName.trim()
   const customised = s.logoPath !== null || (name !== '' && name !== PLACEHOLDER_ORG)
   return customised ? 'own' : 'meridian'
+}
+
+export type ReportPriority = 'now' | 'soon' | 'worth_doing'
+
+export type ReportCatalogueEntry = {
+  observed: string
+  whyItMatters: string
+  recommendation: string
+  priority: ReportPriority
+}
+
+export type ReportFindingDto = FindingDto & {
+  evidence: FindingDto['evidence'] & { storagePath?: string | null }
+  catalogue: ReportCatalogueEntry | null
+}
+
+export type InternalReportDto = {
+  business: Record<string, unknown>
+  website: Record<string, unknown> | null
+  audit: { id: string; createdAt: string; finishedAt: string | null; summary: AuditSummary | null } | null
+  mobile: { id: string; createdAt: string; finishedAt: string | null; summary: MobileSummary | null } | null
+  findings: ReportFindingDto[]
+  mobileFindings: ReportFindingDto[]
+  technologies: { id: string; slug: string; name: string; category: string; version: string | null; confidence: number }[]
+  leadScores: { contactability: number; completeness: number }
+  reportSettings: ReportSettingsDto | null
+  generatedAt: string
 }

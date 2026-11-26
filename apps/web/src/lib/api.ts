@@ -4,6 +4,7 @@ import type {
   BusinessFilters,
   BusinessListItem,
   HealthResponse,
+  InternalReportDto,
   InvestigationDto,
   Paged,
   PresetDto,
@@ -151,4 +152,8 @@ export async function removeReportLogo(): Promise<ReportSettingsDto> {
   const res = await fetch('/api/v1/report-settings/logo', { method: 'DELETE' })
   if (!res.ok) throw new Error(`Request failed: HTTP ${res.status}`)
   return (await res.json()).data
+}
+
+export async function fetchInternalReport(businessId: string): Promise<InternalReportDto> {
+  return (await getJson<{ data: InternalReportDto }>(`/api/v1/businesses/${businessId}/internal-report`)).data
 }

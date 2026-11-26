@@ -1,7 +1,7 @@
 import { useQueryClient } from '@tanstack/react-query'
 import { ArrowLeft, Radar } from 'lucide-react'
 import { useEffect, useRef, useState } from 'react'
-import { useLocation, useNavigate, useParams } from 'react-router'
+import { Link, useLocation, useNavigate, useParams } from 'react-router'
 import { ContactsPanel } from '../components/leads/ContactsPanel'
 import { OverviewPanel } from '../components/leads/OverviewPanel'
 import { ScansPanel } from '../components/leads/ScansPanel'
@@ -65,7 +65,6 @@ export function BusinessDetailPage() {
     { id: 'audit', label: 'Website Audit' },
     { id: 'mobile', label: 'Mobile Check' },
     { id: 'opportunities', label: 'Opportunities', phase: 6 },
-    { id: 'reports', label: 'Reports', phase: 5 },
     { id: 'activity', label: 'Activity', phase: 8 },
   ]
 
@@ -92,16 +91,24 @@ export function BusinessDetailPage() {
             )}
           </div>
         </div>
-        <button
-          type="button"
-          disabled={!site || scanning}
-          onClick={() => startScan.mutate()}
-          title={site ? undefined : 'This business has no website to scan'}
-          className="inline-flex items-center gap-2 rounded-md bg-accent px-3.5 py-2 text-sm font-medium text-on-accent transition-opacity disabled:opacity-50"
-        >
-          <Radar size={15} className={scanning ? 'animate-pulse' : ''} />
-          {scanning ? 'Scanning…' : 'Analyse website'}
-        </button>
+        <div className="flex items-center gap-2">
+          <Link
+            to={`/leads/${b.id}/report`}
+            className="inline-flex items-center gap-2 rounded-md border border-border px-3.5 py-2 text-sm hover:bg-border/40"
+          >
+            Internal report
+          </Link>
+          <button
+            type="button"
+            disabled={!site || scanning}
+            onClick={() => startScan.mutate()}
+            title={site ? undefined : 'This business has no website to scan'}
+            className="inline-flex items-center gap-2 rounded-md bg-accent px-3.5 py-2 text-sm font-medium text-on-accent transition-opacity disabled:opacity-50"
+          >
+            <Radar size={15} className={scanning ? 'animate-pulse' : ''} />
+            {scanning ? 'Scanning…' : 'Analyse website'}
+          </button>
+        </div>
       </div>
       {startScan.isError && (
         <p className="mt-2 text-xs text-danger">Couldn’t start the scan. Is the worker running?</p>

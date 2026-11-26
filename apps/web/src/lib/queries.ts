@@ -18,7 +18,8 @@ import {
   fetchReportSettings,
   saveReportSettings,
   uploadReportLogo,
-  removeReportLogo
+  removeReportLogo,
+  fetchInternalReport
 } from './api'
 
 export const isActiveScan = (s: InvestigationDto) => s.status === 'queued' || s.status === 'running'
@@ -157,4 +158,8 @@ export function useRemoveReportLogo() {
     mutationFn: removeReportLogo,
     onSuccess: (data) => qc.setQueryData(['report-settings'], data),
   })
+}
+
+export function useInternalReport(businessId: string) {
+  return useQuery({ queryKey: ['internal-report', businessId], queryFn: () => fetchInternalReport(businessId), enabled: businessId.length > 0 })
 }

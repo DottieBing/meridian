@@ -11,6 +11,7 @@ import { isPrivateHost, unusableReading } from './browser/guards'
 import { BROWSER_RULES, runBrowserRules } from './browser/rules'
 import type { BrowserMeasurement } from './browser/measure'
 import { detectPlaceholder } from './placeholder'
+import { CATALOGUE, PRIORITY_ORDER } from './catalogue'
 
 const GOOD_HEADERS = {
   'strict-transport-security': 'max-age=31536000',
@@ -289,6 +290,15 @@ test('a script-rendered page is flagged once and not judged on its empty shell',
   assert.ok(codes.has('seo.script_rendered.content'))
   for (const c of ['seo.h1.missing', 'seo.title.duplicate', 'seo.structured_data.missing', 'seo.canonical.missing']) {
     assert.ok(!codes.has(c), `${c} should be skipped on a script-rendered page`)
+  }
+})
+
+test('the catalogue never states a specific cost, saving or percentage, and every priority is valid', () => {
+  const NUMBER_CLAIM = /\$|£|€|\d+%|\d+\s*(?:dollars|naira|euros|pounds)\b/i
+  for (const [code, entry] of Object.entries(CATALOGUE)) {
+    assert.ok(!NUMBER_CLAIM.test(entry.whyItMatters), `${code}: whyItMatters states a specific figure`)
+    assert.ok(!NUMBER_CLAIM.test(entry.observed), `${code}: observed states a specific figure`)
+    assert.ok(PRIORITY_ORDER.includes(entry.priority), `${code}: invalid priority`)
   }
 })
 
