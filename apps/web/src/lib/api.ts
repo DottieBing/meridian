@@ -10,6 +10,8 @@ import type {
   WorkspaceDto,
   TechOptionDto,
   MobileAuditDto,
+  ReportSettingsDto,
+  BrandMode,
 } from '@meridian/shared/api-types'
 
 async function getJson<T>(url: string, init?: RequestInit): Promise<T> {
@@ -116,4 +118,37 @@ export async function startMobileAudit(businessId: string): Promise<{ investigat
 
 export async function fetchMobileAudit(businessId: string): Promise<MobileAuditDto | null> {
   return (await getJson<{ data: MobileAuditDto | null }>(`/api/v1/businesses/${businessId}/browser-audit`)).data
+}
+
+export async function fetchReportSettings(): Promise<ReportSettingsDto> {
+  return (await getJson<{ data: ReportSettingsDto }>('/api/v1/report-settings')).data
+}
+
+export async function saveReportSettings(v: {
+  orgName: string
+  contactLine: string
+  brandMode: BrandMode
+  showMeridianCredit: boolean
+}): Promise<ReportSettingsDto> {
+  return (
+    await getJson<{ data: ReportSettingsDto }>('/api/v1/report-settings', {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(v),
+    })
+  ).data
+}
+
+export async function uploadReportLogo(file: File): Promise<ReportSettingsDto> {
+  const form = new FormData()
+  form.append('file', file)
+  const res = await fetch('/api/v1/report-settings/logo', { method: 'POST', body: form })
+  if (!res.ok) throw new Error(`Upload failed: HTTP ${res.status}`)
+  return (await res.json()).data
+}
+
+export async function removeReportLogo(): Promise<ReportSettingsDto> {
+  const res = await fetch('/api/v1/report-settings/logo', { method: 'DELETE' })
+  if (!res.ok) throw new Error(`Request failed: HTTP ${res.status}`)
+  return (await res.json()).data
 }

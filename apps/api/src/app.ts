@@ -11,6 +11,8 @@ import { businessRoutes } from './routes/businesses'
 import { investigationRoutes } from './routes/investigations'
 import { auditRoutes } from './routes/audits'
 import { browserRoutes } from './routes/browser'
+import multipart from '@fastify/multipart'
+import { reportSettingsRoutes } from './routes/report-settings'
 
 export type AppDeps = {
   config: Config
@@ -45,6 +47,8 @@ export async function buildApp({ config, db, boss, checkDb }: AppDeps) {
   await app.register(investigationRoutes(db, boss))
   await app.register(auditRoutes(db, boss))
   await app.register(browserRoutes(db, boss))
+  await app.register(multipart, { limits: { fileSize: 2 * 1024 * 1024 } }) // 2 MB, logos only
+  await app.register(reportSettingsRoutes(db))
 
   return app
 }

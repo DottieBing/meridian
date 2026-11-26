@@ -14,7 +14,11 @@ import {
   fetchTechOptions,
   fetchMobileAudit,
   fetchMobileRuns,
-  startMobileAudit
+  startMobileAudit,
+  fetchReportSettings,
+  saveReportSettings,
+  uploadReportLogo,
+  removeReportLogo
 } from './api'
 
 export const isActiveScan = (s: InvestigationDto) => s.status === 'queued' || s.status === 'running'
@@ -124,5 +128,33 @@ export function useStartMobileAudit(businessId: string) {
   return useMutation({
     mutationFn: () => startMobileAudit(businessId),
     onSuccess: () => qc.invalidateQueries({ queryKey: ['mobile-runs', businessId] }),
+  })
+}
+
+export function useReportSettings() {
+  return useQuery({ queryKey: ['report-settings'], queryFn: fetchReportSettings })
+}
+
+export function useSaveReportSettings() {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: saveReportSettings,
+    onSuccess: (data) => qc.setQueryData(['report-settings'], data),
+  })
+}
+
+export function useUploadReportLogo() {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: uploadReportLogo,
+    onSuccess: (data) => qc.setQueryData(['report-settings'], data),
+  })
+}
+
+export function useRemoveReportLogo() {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: removeReportLogo,
+    onSuccess: (data) => qc.setQueryData(['report-settings'], data),
   })
 }

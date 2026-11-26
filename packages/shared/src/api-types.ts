@@ -272,3 +272,29 @@ export type MobileAuditDto = {
 }
 
 export type TechOptionDto = { slug: string; name: string; category: string; sites: number }
+
+export type BrandMode = 'auto' | 'own' | 'cobrand' | 'meridian'
+
+export type ReportSettingsDto = {
+  workspaceId: string
+  orgName: string
+  contactLine: string
+  logoPath: string | null
+  brandMode: BrandMode
+  showMeridianCredit: boolean
+  updatedAt: string
+}
+
+export const PLACEHOLDER_ORG = 'Your Company Name'
+
+/** Which header a report gets. 'auto' shows Meridian until the user sets a real name or logo. */
+export function resolveHeader(s: {
+  orgName: string
+  logoPath: string | null
+  brandMode: BrandMode
+}): 'meridian' | 'own' | 'cobrand' {
+  if (s.brandMode !== 'auto') return s.brandMode
+  const name = s.orgName.trim()
+  const customised = s.logoPath !== null || (name !== '' && name !== PLACEHOLDER_ORG)
+  return customised ? 'own' : 'meridian'
+}

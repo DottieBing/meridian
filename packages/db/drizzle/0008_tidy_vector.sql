@@ -1,0 +1,2 @@
+ALTER TABLE "report_settings" ADD COLUMN "brand_mode" text DEFAULT 'auto' NOT NULL;--> statement-breakpoint
+ALTER TABLE "report_settings" ADD COLUMN "show_meridian_credit" boolean DEFAULT true NOT NULL;

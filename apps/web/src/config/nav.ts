@@ -105,6 +105,7 @@ export const NAV: NavSection[] = [
     label: 'SETTINGS',
     items: [
       { label: 'Settings', path: '/settings', icon: Settings, phase: 2, summary: 'Data sources, crawl limits, concurrency, scoring and email settings.' },
+      { label: 'Report Settings', path: '/settings/report', icon: FileText },
     ],
   },
 ]
